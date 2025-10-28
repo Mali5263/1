@@ -154,7 +154,7 @@ function debug(msg, color="#ddd") {
 }
 
 // --- Save & Load Inputs from localStorage ---
-const inputIds = ["tokenInput", "minBuy","minProfit","minPrice","maxPrice","maxFirstCount","maxSecondCount","hideTrophies","autoUpdate"];
+const inputIds = ["minBuy","minProfit","minPrice","maxPrice","maxFirstCount","maxSecondCount","hideTrophies","autoUpdate"];
 function saveInputs(){
     inputIds.forEach(id=>{
         const el = document.getElementById(id);
@@ -439,7 +439,6 @@ async function exactScanItem(token, item, retries=3){
                     "Content-Type":"application/x-www-form-urlencoded",
                     "accept": "application/json, text/plain, */*"
                 },
-                referrer: "https://trade.gaijin.net/",
                 mode: "cors",
                 credentials: "omit",
                 body
@@ -549,7 +548,6 @@ async function fetchSalesHistory(token, item){
                 "Content-Type":"application/x-www-form-urlencoded",
                 "accept": "application/json, text/plain, */*"
             },
-            referrer: "https://trade.gaijin.net/",
             mode: "cors",
             credentials: "omit",
             body
@@ -821,7 +819,6 @@ async function updateOpenOrdersData() {
         const resp = await fetch("https://market-proxy.gaijin.net/web", {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            referrer: "https://trade.gaijin.net/",
             mode: "cors",
             credentials: "omit",
             body: `action=cln_get_user_open_orders&token=${token}`
@@ -866,7 +863,6 @@ async function updateOpenOrdersData() {
                 const resp = await fetch("https://market-proxy.gaijin.net/web", {
                     method: "POST",
                     headers: { "Content-Type": "application/x-www-form-urlencoded", "accept": "application/json, text/plain, */*" },
-                    referrer: "https://trade.gaijin.net/",
                     mode: "cors",
                     credentials: "omit",
                     body
