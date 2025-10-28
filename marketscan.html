@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>War Thunder Marketplace Scanner</title>
+<style>
+body { font-family: Arial, sans-serif; background-color: #121212; color: #E0E0E0; margin: 0; padding: 0; }
+ header { background-color: #1E1E1E; padding: 10px 20px; font-size: 20px; font-weight: bold; }
+.controls { padding: 10px 20px; background-color: #1A1A1A; display: flex; flex-wrap: wrap; gap: 20px; align-items: center; }
+.controls label { display: flex; align-items: center; gap: 5px; }
+input[type=number], input[type=text] { margin-left: 5px; }
+button { background-color: #2965FF; color: white; border: none; padding: 8px 16px; cursor: pointer; border-radius: 4px; }
+button:hover { background-color: #3F7EFF; }
+table { width: calc(100% - 40px); border-collapse: collapse; margin: 20px; text-align: left; table-layout: fixed; }
+th, td { padding: 8px; border-bottom: 1px solid #333; word-wrap: break-word; }
+th { background-color: #1E1E1E; }
+tr.low { background-color: #FF5252; }
+tr.placeholder { height: 30px; /* Approximate row height */ }
+tr.medium { background-color: #FFA726; }
+tr.high { background-color: #4CAF50; }
+tr.loading { background-color: #2A3F3F; }
+.progress-container { margin: 20px; width: calc(100% - 40px); background-color: #333; height: 20px; border-radius: 10px; overflow: hidden; position: relative; }
+.progress-bar { height: 50%; width: 0%; transition: width 0.2s; }
+#quickScanBar { background-color: #2965FF; position: absolute; top: 0; left: 0; }
+#exactScanBar { background-color: #4CAF50; position: absolute; bottom: 0; left: 0; }
+.item-icon { width: 50px; height: 50px; object-fit: contain; }
+#itemCount { margin: 0 20px; font-weight: bold; }
+#debug { font-family: monospace; white-space: pre-wrap; border:1px solid #888; padding:5px; height:200px; overflow-y:auto; margin:10px 20px; background-color:#222; color:#ccc;}
+th.sorted-asc::after { content: " ▲"; }
+th.sorted-desc::after { content: " ▼"; }
+</style>
+</head>
+<body>
+<header>
+    War Thunder Marketplace Scanner
+</header>
+
+<div class="controls">
+    <label>Marketplace URL/Token:
+        <input type="text" id="tokenInput" placeholder="Enter URL or token">
+    </label>
+    <button id="generateToken">Generate Token</button>
+    <label>Min Buy Orders:
+        <input type="number" id="minBuy" value="10" min="0" max="500">
+    </label>
+    <label>Min Profit %:
+        <input type="number" id="minProfit" value="5" min="0" max="100">
+    </label>
+    <label>Min Price (GJN):
+        <input type="number" id="minPrice" value="0" min="0">
+    </label>
+    <label>Max Price (GJN):
+        <input type="number" id="maxPrice" value="1000" min="0">
+    </label>
+    <label>Max First Price Sell Orders:
+        <input type="number" id="maxFirstCount" value="9999" min="0">
+    </label>
+    <label>Max Second Price Sell Orders:
+        <input type="number" id="maxSecondCount" value="9999" min="0">
+    </label>
+    <label>
+        <input type="checkbox" id="hideTrophies" checked> Hide Trophies/Keys
+    </label>
+    <label>
+        <input type="checkbox" id="autoUpdate"> Auto Update
+    </label>
+    <button id="startScan">Start Scan</button>
+    <button id="stopScan">Stop Scan</button>
+<button id="showOpenOrders">My Open Orders</button>
+<button id="showHistory">My History</button>
+</div>
+
+<div id="itemCount" style="display: flex; justify-content: space-between; align-items: center; padding: 0 20px;">
+    <span id="itemStats">Items Loaded: 0 | Delay: 50ms | Concurrency: 12 | Rejection Rate: 0.0%</span>
+    <span id="balanceDisplay" style="font-size: 0.9em; color: #888;"></span>
+</div>
+<div class="progress-container">
+    <div class="progress-bar" id="quickScanBar"></div>
+    <div class="progress-bar" id="exactScanBar"></div>
+</div>
+
+<table id="resultsTable">
+    <thead>
+        <tr>
+            <th>Icon</th>
+            <th>Item Name</th>
+            <th>Lowest Sell</th>
+            <th>2nd Lowest Sell</th>
+            <th>Profit %</th>
+            <th>Buy Orders</th>
+            <th>Sales/Day</th>
+            <th>Last 24h Sales</th>
+            <th>Last Updated</th>
+            <th>URL</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+<div id="debug"></div>
+
+<!-- Overlays for Open Orders and History -->
+<div id="openOrdersOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background-color:rgba(0,0,0,0.7); z-index:1000; color: #E0E0E0;">
+    <div style="position:relative; margin: 5% auto; padding:20px; width:80%; background-color:#1E1E1E; border-radius:8px; max-height: 80vh; overflow-y: auto;">
+        <button id="closeOpenOrders" style="position:absolute; top:10px; right:10px; background-color:#FF5252; color:white; border:none; padding:5px 10px; cursor:pointer; border-radius: 4px;">Close</button>
+        <h2>My Open Orders</h2>
+        <div id="openOrdersContent"></div>
+    </div>
+</div>
+
+<div id="historyOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background-color:rgba(0,0,0,0.7); z-index:1000; color: #E0E0E0;">
+    <div style="position:relative; margin: 5% auto; padding:20px; width:80%; background-color:#1E1E1E; border-radius:8px; max-height: 80vh; overflow-y: auto;">
+        <button id="closeHistory" style="position:absolute; top:10px; right:10px; background-color:#FF5252; color:white; border:none; padding:5px 10px; cursor:pointer; border-radius: 4px;">Close</button>
+        <button id="refreshHistory" style="position:absolute; top:10px; right:70px; background-color:#2965FF; color:white; border:none; padding:5px 10px; cursor:pointer; border-radius: 4px;">Refresh</button>
+        <h2>My History</h2>
+        <div id="historyContent" style="text-align: center;">
+            <!-- Canvas for the graph -->
+            <canvas id="historyChart" width="1000" height="400"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+let stopFlag = false;
+let itemsScanned = [];
+let pendingExactQueue = [];
+let concurrencyLimit = 73; // Exact scan concurrency
+const quickConcurrency = 73; // Quick scan concurrency
+const maxConcurrency = 73; // Maximum adaptive concurrency
+const minConcurrency = 5; // Minimum concurrency
+let minDelay = 50;
+let salesHistoryQueue = [];
+let processingHistory = false;
+let salesQueueRunning = false;
+let filteredAndSortedItems = [];
+const ROW_HEIGHT = 68; // Approximate height of a row in pixels
+let continuousUpdateRunning = false;
+let myOpenOrdersHtmlCache = '<p>Enable "Auto Update" to see your open orders.</p>';
+let isUpdatingOpenOrders = false;
+let soldItemsTracker = new Map(); // Track recently sold items
+let historyCache = null; // Cache for the user history data
+
+// Statistics tracking
+let totalRequests = 0;
+let failedRequests = 0;
+let successfulRequests = 0;
+
+// --- Utility Functions ---
+function debug(msg, color="#ddd") {
+    const dbg = document.getElementById("debug");
+    const time = new Date().toLocaleTimeString();
+    dbg.innerHTML += `[${time}] <span style="color:${color}">${msg}</span>\n`;
+    dbg.scrollTop = dbg.scrollHeight;
+}
+
+// --- Save & Load Inputs from localStorage ---
+const inputIds = ["tokenInput", "minBuy","minProfit","minPrice","maxPrice","maxFirstCount","maxSecondCount","hideTrophies","autoUpdate"];
+function saveInputs(){
+    inputIds.forEach(id=>{
+        const el = document.getElementById(id);
+        if(el.type==="checkbox") localStorage.setItem(id, el.checked);
+        else localStorage.setItem(id, el.value);
+    });
+}
+function loadInputs(){
+    inputIds.forEach(id=>{
+        const el = document.getElementById(id);
+        const saved = localStorage.getItem(id);
+        if(saved!==null){
+            if(el.type==="checkbox") el.checked = saved==="true";
+            else el.value = saved;
+        }
+    });
+}
+loadInputs();
+
+function saveItemsToCache() {
+    if (itemsScanned.length > 0) {
+        const cacheData = {
+            timestamp: Date.now(),
+            items: itemsScanned
+        };
+        localStorage.setItem('itemsScannedCache', JSON.stringify(cacheData));
+        debug(`Saved ${itemsScanned.length} items to local cache.`, 'lightblue');
+    }
+}
+
+function loadItemsFromCache() {
+    const cachedDataJSON = localStorage.getItem('itemsScannedCache');
+    if (cachedDataJSON) {
+        const cachedData = JSON.parse(cachedDataJSON);
+        // Make sure dates are converted back from strings
+        itemsScanned = cachedData.items.map(item => ({...item, lastUpdated: new Date(item.lastUpdated)}));
+        debug(`Loaded ${itemsScanned.length} items from cache.`, 'lightblue');
+    }
+}
+loadItemsFromCache();
+
+// --- Sorting state ---
+let currentSort = JSON.parse(localStorage.getItem("currentSort")) || { column: 'Profit %', asc: false };
+
+updateTable(); // Render empty table on load
+inputIds.forEach(id => {
+    document.getElementById(id).addEventListener("input", () => {
+        saveInputs();
+        updateTable();
+        
+        // Handle auto-update toggle
+        if(id === "autoUpdate"){
+            const autoUpdateChecked = document.getElementById("autoUpdate").checked;
+            if(autoUpdateChecked && itemsScanned.length > 0 && !continuousUpdateRunning){
+                const token = document.getElementById("tokenInput").value.trim();
+                if(token){
+                    debug("Auto Update enabled, starting background updates...", "#0f0");
+                    startContinuousUpdate(token);
+                }
+            } else if(!autoUpdateChecked){
+                continuousUpdateRunning = false;
+                debug("Auto Update disabled. Background updates stopped.", "orange");
+            }
+        }
+    });
+});
+
+// Listen for scroll events on the window to handle virtual rendering
+window.addEventListener('scroll', () => {
+    renderVisibleRows();
+});
+
+// --- Token Generation ---
+document.getElementById("generateToken").addEventListener("click", ()=>{
+    debug("Generate Token button clicked.", "yellow");
+    const token = "market_" + Math.random().toString(36).substring(2,12);
+    document.getElementById("tokenInput").value = token;
+    saveInputs();
+    debug("Generated temporary token: " + token, "#0f0");
+});
+
+// --- Start / Stop Scan ---
+document.getElementById("startScan").addEventListener("click", () => {
+    debug("Start Scan button clicked. Resetting state and initiating full scan.", "yellow");
+    stopFlag = false;
+    startFullScan();
+});
+document.getElementById("stopScan").addEventListener("click", () => {
+    debug("Stop Scan button clicked. Setting stopFlag to true.", "yellow");
+    stopFlag = true;
+    continuousUpdateRunning = false;
+    debug("Scan stopped by user.", "orange");
+});
+
+// --- Main Scan Functions ---
+async function startFullScan(){
+    const token = document.getElementById("tokenInput").value.trim();
+    if(!token) return alert("Token or URL is required!");
+    itemsScanned = [];
+    pendingExactQueue = [];
+    salesHistoryQueue = [];
+    processingHistory = false;
+    document.getElementById("resultsTable").querySelector("tbody").innerHTML = "";
+    await scanAllItemsParallel(token);
+    
+    // Start continuous update if enabled
+    if(document.getElementById("autoUpdate").checked && !stopFlag){
+        debug("Auto Update enabled, starting background updates...", "#0f0");
+        startContinuousUpdate(token);
+    }
+}
+
+// --- Continuous Update Function ---
+async function startContinuousUpdate(token){
+    if(continuousUpdateRunning) return;
+    continuousUpdateRunning = true;
+    
+    while(document.getElementById("autoUpdate").checked && !stopFlag && itemsScanned.length > 0){
+        // Scan multiple items in parallel batches
+        for(let i = 0; i < itemsScanned.length && !stopFlag && document.getElementById("autoUpdate").checked; i += 10){
+            // Wait if the high-priority open orders update is running
+            while (isUpdatingOpenOrders) {
+                debug("Pausing main table update to prioritize 'My Open Orders' fetch.", "gray");
+                await new Promise(r => setTimeout(r, 500));
+            }
+            const batch = itemsScanned.slice(i, i + 10);
+            await Promise.all(batch.map(item => exactScanItem(token, item)));
+            // Short delay between batches
+            await new Promise(r => setTimeout(r, 200));
+        }
+        
+        debug("Completed one cycle of continuous updates.", "#0ff");
+        // Short pause before starting next cycle
+        await new Promise(r => setTimeout(r, 1000));
+    }
+    
+    continuousUpdateRunning = false;
+}
+
+// --- Fetch and scan (same as original) ---
+async function fetchBatch(token, skip, count){
+    const body = `action=cln_market_search&token=${token}&skip=${skip}&count=${count}&text=&language=en_US&options=any_buy_orders%3Binclude_marketpairs&appid_filter=1067`;
+    const resp = await fetch("https://market-proxy.gaijin.net/web", { method:"POST", headers: {"Content-Type": "application/x-www-form-urlencoded"}, body });
+    return await resp.json();
+}
+async function fetchBatchWithRetry(token, skip, count, retries=3){
+    for(let attempt=1; attempt<=retries; attempt++){
+        try {
+            const data = await fetchBatch(token, skip, count);
+            // If the batch is empty, it's not an error. It means we've reached the end.
+            // Immediately return, which will resolve the promise with hasMore=false.
+            if(data.response?.assets?.length === 0) {
+                debug(`Batch empty at skip=${skip}. Assuming end of list.`, "lightblue");
+                return { response: { assets: [] } };
+            }
+            return data; // Success, return data with assets.
+        } catch (e) {
+            debug(`Batch fetch error at skip=${skip}, retry ${attempt}: ${e.message}`, "orange");
+            await new Promise(r=>setTimeout(r, 200 + attempt*50));
+        }
+    }
+    debug(`Batch at skip=${skip} returned 0 after retries`, "red");
+    return { response: { assets: [] } };
+}
+async function scanAllItemsParallel(token){
+    debug("Starting full parallel scan...", "#00AAFF");
+    let skip = 0;
+    let batchSize = 50;
+    let moreItems = true;
+    let totalBatches = 0;
+    let completedBatches = 0;
+    let activeFetches = [];
+
+    while(!stopFlag && moreItems){
+        // Create batches in parallel up to quickConcurrency
+        while(activeFetches.length < quickConcurrency && !stopFlag && moreItems){
+            totalBatches++;
+            const currentSkip = skip;
+            skip += batchSize;
+            
+            const fetchPromise = fetchBatchWithRetry(token, currentSkip, batchSize)
+                .then(data => {
+                    handleBatchData(token, data);
+                    completedBatches++;
+                    updateQuickScanProgress(completedBatches, totalBatches);
+                    return data.response?.assets?.length > 0;
+                });
+            
+            activeFetches.push(fetchPromise);
+        }
+        
+        // Wait for at least one to complete
+        if (activeFetches.length > 0) {
+            const results = await Promise.race(activeFetches.map((p, idx) => p.then(hasMore => ({idx, hasMore}))));
+            activeFetches.splice(results.idx, 1);
+            
+            // If a batch came back empty, we've likely reached the end. Stop queuing new fetches.
+            if(!results.hasMore) {
+                moreItems = false;
+                break; // Exit the main while loop immediately, abandoning other in-flight fetches.
+            }
+        }
+        
+        await new Promise(r => setTimeout(r, minDelay));
+    }
+    
+    // Wait for remaining fetches
+    await Promise.all(activeFetches);
+
+    debug("Finished loading all batches. Starting exact scans...", "#00FF00");
+    await processExactQueue(token);
+}
+async function handleBatchData(token, data){
+    if(!data.response || !data.response.assets || data.response.assets.length === 0) return;
+
+    const batchItems = data.response.assets.map(a => ({
+        appid: a.appid,
+        hash_name: a.hash_name,
+        name: a.name,
+        icon: a.icon,
+        url: `https://trade.gaijin.net/market/${a.appid}/${encodeURIComponent(a.hash_name)}`,
+        lowestSell: a.price/1e4,
+        lowestCount: a.depth,
+        secondLowest: null,
+        secondCount: null,
+        profitGJN: 0,
+        profitPercent: 0,
+        buyOrders: a.buy_depth || 0,
+        salesPerDay: null,
+        sales24h: null,
+        loading: true,
+        lastUpdated: new Date()
+    }));
+
+    itemsScanned.push(...batchItems);
+    pendingExactQueue.push(...batchItems);
+    updateTable();
+}
+async function processExactQueue(token){
+    let totalItems = pendingExactQueue.length;
+    let completedItems = 0;
+
+    while(pendingExactQueue.length>0 && !stopFlag){
+        const batch = pendingExactQueue.splice(0, concurrencyLimit);
+        const results = await Promise.allSettled(batch.map(async item => {
+            totalRequests++;
+            const success = await exactScanItem(token, item);
+            if(success) successfulRequests++;
+            else failedRequests++;
+            return success;
+        }));
+        
+        completedItems += batch.length;
+        updateExactScanProgress(completedItems, totalItems);
+        updateStats();
+        
+        // Adaptive concurrency adjustment
+        if(completedItems % 50 === 0 && completedItems > 0){
+            const successRate = successfulRequests / totalRequests;
+            if(successRate > 0.95 && concurrencyLimit < maxConcurrency){
+                concurrencyLimit++;
+                debug(`Adaptive throttle: stable, increasing concurrency to ${concurrencyLimit}`, "#0f0");
+            } else if(successRate < 0.8 && concurrencyLimit > minConcurrency){
+                concurrencyLimit--;
+                debug(`Adaptive throttle: instability detected, reducing concurrency to ${concurrencyLimit}`, "orange");
+            }
+        }
+    }
+    debug("All exact scans processed.", "#00FF00");
+    saveItemsToCache(); // Save the fully scanned items
+}
+async function exactScanItem(token, item, retries=3){
+    if(stopFlag) return;
+
+    const body = `action=cln_books_brief&token=${token}&appid=${item.appid}&market_name=${item.hash_name}`;
+
+    for(let attempt=1; attempt<=retries; attempt++){
+        try {
+            const resp = await fetch("https://market-proxy.gaijin.net/web", {
+                method:"POST",
+                headers: {
+                    "Content-Type":"application/x-www-form-urlencoded",
+                    "accept": "application/json, text/plain, */*"
+                },
+                referrer: "https://trade.gaijin.net/",
+                mode: "cors",
+                credentials: "omit",
+                body
+            });
+
+            let data;
+            try { data = await resp.json(); } 
+            catch(e) { 
+                debug(`Exact scan for ${item.name} failed to parse JSON on attempt ${attempt}.`, "orange");
+                if(attempt === retries){
+                    item.loading = false;
+                    item.lastUpdated = new Date();
+                    updateTable();
+                    // Return false to indicate failure for adaptive concurrency
+                    return false;
+                }
+                continue;
+            }
+
+            if(data.response?.SELL?.length > 0){
+                const sellOffers = data.response.SELL.sort((a,b)=>a[0]-b[0]);
+                item.lowestSell = sellOffers[0][0]/1e4;
+                item.lowestCount = sellOffers[0][1];
+
+                if(sellOffers.length>1){
+                    item.secondLowest = sellOffers[1][0]/1e4;
+                    item.secondCount = sellOffers[1][1];
+                    // Calculate actual profit: buy at lowest, sell at second lowest with 15% cut
+                    const buyPrice = item.lowestSell;
+                    const sellPrice = item.secondLowest * 0.85; // After 15% Gaijin cut
+                    item.profitGJN = sellPrice - buyPrice;
+                    item.profitPercent = (item.profitGJN / buyPrice) * 100;
+                } else {
+                    item.secondLowest = null;
+                    item.secondCount = null;
+                    item.profitGJN = 0;
+                    item.profitPercent = 0;
+                }
+            } else {
+                item.secondLowest = null;
+                item.secondCount = null;
+                item.profitGJN = 0;
+                item.profitPercent = 0;
+            }
+
+            item.loading = false;
+            item.lastUpdated = new Date();
+            
+            // Queue for sales history instead of fetching immediately
+            salesHistoryQueue.push(item);            
+            if (!salesQueueRunning) processSalesHistoryQueueParallel(token);
+            updateTable();
+            return;
+
+        } catch(e){
+            debug(`Exact scan failed for ${item.name}, attempt ${attempt}: ${e}`, "red");
+            await new Promise(r=>setTimeout(r, 200));
+            if(attempt === retries){
+                item.loading = false;
+                item.secondLowest = null;
+                item.secondCount = null;
+                item.profitGJN = 0;
+                item.profitPercent = 0;
+                item.lastUpdated = new Date();
+                updateTable();
+            }
+        }
+    }
+}
+
+// --- Fetch Sales History ---
+const salesConcurrency = 100; // Process 100 sales history requests in parallel
+async function processSalesHistoryQueueParallel(token){
+    if (salesQueueRunning || salesHistoryQueue.length === 0) return;
+    salesQueueRunning = true;
+    
+    const queueLength = salesHistoryQueue.length;
+    debug(`Starting sales history for ${queueLength} items...`, "#0ff");
+    
+    try {
+        while(salesHistoryQueue.length > 0 && !stopFlag){
+            // Wait if the high-priority open orders update is running
+            while (isUpdatingOpenOrders) {
+                debug("Pausing sales history fetch to prioritize 'My Open Orders' fetch.", "gray");
+                await new Promise(r => setTimeout(r, 500));
+            }
+
+            const batch = salesHistoryQueue.splice(0, salesConcurrency);
+            await Promise.all(batch.map(item => fetchSalesHistory(token, item)));
+        }
+        
+        debug("Sales history processing complete.", "#0ff");
+    } catch(err) {
+        debug(`Sales history error: ${err.message}`, "red");
+    } finally {
+        salesQueueRunning = false;
+    }
+}
+
+async function fetchSalesHistory(token, item){
+    try {
+        debug(`Fetching sales history for: ${item.name}`, 'gray');
+        const body = `action=cln_get_pair_stat&token=${token}&appid=${item.appid}&market_name=${item.hash_name}&currencyid=gjn`;
+        const resp = await fetch("https://market-proxy.gaijin.net/web", {
+            method:"POST",
+            headers: {
+                "Content-Type":"application/x-www-form-urlencoded",
+                "accept": "application/json, text/plain, */*"
+            },
+            referrer: "https://trade.gaijin.net/",
+            mode: "cors",
+            credentials: "omit",
+            body
+        });
+        
+        // Check if response is ok before trying to parse
+        if (!resp.ok) {
+            debug(`Sales history fetch for ${item.name} failed with status: ${resp.status}`, 'orange');
+            return;
+        }
+        
+        const text = await resp.text();
+        if (!text || text.trim().length === 0) {
+            debug(`Sales history for ${item.name} returned empty response.`, 'lightblue');
+            return; // Empty response, skip
+        }
+        
+        let data;
+        try { data = JSON.parse(text); }
+        catch(e) {
+            debug(`Failed to parse JSON for ${item.name} sales history.`, 'orange');
+            return; // Invalid JSON, skip
+        }
+        
+        if(data.response?.success && data.response["1d"]){
+            const dailyData = data.response["1d"];
+            const hourlyData = data.response["1h"] || [];
+            
+            // Calculate sales per day (average from daily data)
+            if(dailyData && dailyData.length > 0){
+                const totalSales = dailyData.reduce((sum, entry) => sum + entry[2], 0);
+                const daysSpan = dailyData.length;
+                item.salesPerDay = (totalSales / daysSpan).toFixed(1);
+            }
+            
+            // Calculate sales in last 24 hours from hourly data
+            if(hourlyData && hourlyData.length > 0){
+                const now = Math.floor(Date.now() / 1000);
+                const last24h = now - (24 * 60 * 60);
+                const recentSales = hourlyData
+                    .filter(entry => entry[0] >= last24h)
+                    .reduce((sum, entry) => sum + entry[2], 0);
+                item.sales24h = recentSales;
+            } else {
+                item.sales24h = 0;
+            }
+            
+            // Force update table after getting data
+            updateTable();
+        } else {
+            debug(`Sales history for ${item.name} was not successful or missing data.`, 'lightblue');
+        }
+    } catch(e) {
+        debug(`Error in fetchSalesHistory for ${item.name}: ${e.message}`, 'red');
+    }
+}
+
+// --- Table Sorting ---
+document.querySelectorAll("#resultsTable th").forEach((th, idx)=>{
+    if(idx===0) return; // skip icon
+    th.style.cursor = "pointer";
+    th.addEventListener("click", ()=>{
+        const colNames = ["Icon","Item Name","Lowest Sell","2nd Lowest Sell","Profit %","Buy Orders","Sales/Day","Last 24h Sales","Last Updated","URL"];
+        const colKey = colNames[idx];
+        debug(`Sort column clicked: '${colKey}'. Toggling sort order.`, "yellow");
+        if(currentSort.column===colKey) currentSort.asc = !currentSort.asc;
+        else { currentSort.column = colKey; currentSort.asc = true; }
+        updateFiltersAndSort();
+    });
+});
+
+function updateFiltersAndSort() {
+    const tbody = document.getElementById("resultsTable").querySelector("tbody");
+    
+    // Update header arrow indicators
+    document.querySelectorAll("#resultsTable th").forEach((th, idx)=>{
+        th.classList.remove("sorted-asc","sorted-desc");
+        const colNames = ["Icon","Item Name","Lowest Sell","2nd Lowest Sell","Profit %","Buy Orders","Sales/Day","Last 24h Sales","Last Updated","URL"];
+        if(colNames[idx]===currentSort.column){
+            th.classList.add(currentSort.asc?"sorted-asc":"sorted-desc");
+        }
+    });
+    
+    localStorage.setItem("currentSort", JSON.stringify(currentSort));
+    
+    const minProfit = parseFloat(document.getElementById("minProfit").value);
+    const minBuy = parseFloat(document.getElementById("minBuy").value);
+    const minPrice = parseFloat(document.getElementById("minPrice").value);
+    const maxPrice = parseFloat(document.getElementById("maxPrice").value);
+    const maxFirstCount = parseFloat(document.getElementById("maxFirstCount").value);
+    const maxSecondCount = parseFloat(document.getElementById("maxSecondCount").value);
+    const hideTrophies = document.getElementById("hideTrophies").checked;
+    
+    // 1. Sort the data
+    const sorted = itemsScanned.slice().sort((a,b)=>{
+        let valA, valB;
+        switch(currentSort.column){
+            case "Item Name": valA=a.name.toLowerCase(); valB=b.name.toLowerCase(); break;
+            case "Lowest Sell": valA=a.lowestSell||0; valB=b.lowestSell||0; break;
+            case "2nd Lowest Sell": valA=a.secondLowest||0; valB=b.secondLowest||0; break;
+            case "Profit %": valA=a.profitPercent||0; valB=b.profitPercent||0; break;
+            case "Buy Orders": valA=a.buyOrders||0; valB=b.buyOrders||0; break;
+            case "Sales/Day": valA=parseFloat(a.salesPerDay)||0; valB=parseFloat(b.salesPerDay)||0; break;
+            case "Last 24h Sales": valA=a.sales24h||0; valB=b.sales24h||0; break;
+            case "Last Updated": valA=new Date(a.lastUpdated).getTime()||0; valB=new Date(b.lastUpdated).getTime()||0; break;
+            case "URL": valA=a.url||""; valB=b.url||""; break;
+            default: valA=0; valB=0;
+        }
+        return currentSort.asc ? (valA>valB?1:-1) : (valA<valB?1:-1);
+    });
+    
+    // 2. Filter the sorted data
+    filteredAndSortedItems = sorted.filter(item => {
+        if(hideTrophies && (item.name.toLowerCase().includes('trophy') || item.name.toLowerCase().includes('key'))) return false;
+        if(item.profitPercent < minProfit) return false;
+        if(item.buyOrders < minBuy) return false;
+        if(item.lowestSell < minPrice || item.lowestSell > maxPrice) return false;
+        if(item.lowestCount > maxFirstCount) return false;
+        if(item.secondCount !== null && item.secondCount > maxSecondCount) return false;
+        return true;
+    });
+    
+    // 3. Render only the visible part of the filtered/sorted data
+    renderVisibleRows();
+    updateStats();
+}
+
+function renderVisibleRows() {
+    const tbody = document.getElementById("resultsTable").querySelector("tbody");
+    const totalItems = filteredAndSortedItems.length;
+    const viewportHeight = window.innerHeight;
+    const scrollTop = window.scrollY;
+
+    let startIndex = Math.floor(scrollTop / ROW_HEIGHT) - 10;
+    startIndex = Math.max(0, startIndex);
+    let endIndex = Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + 10;
+    endIndex = Math.min(totalItems, endIndex);
+
+    const fragment = document.createDocumentFragment();
+
+    if (startIndex > 0) {
+        const placeholder = document.createElement('tr');
+        placeholder.style.height = `${startIndex * ROW_HEIGHT}px`;
+        fragment.appendChild(placeholder);
+    }
+
+    for (let i = startIndex; i < endIndex; i++) {
+        const item = filteredAndSortedItems[i];
+        if (!item) continue;
+        
+        const tr = document.createElement("tr");
+        tr.dataset.timestamp = new Date(item.lastUpdated).getTime();
+
+        if(item.loading) tr.className="loading";
+        else if(item.profitPercent>20) tr.className="high";
+        else if(item.profitPercent>10) tr.className="medium";
+        else tr.className="low";
+
+        const secondsAgo = Math.floor((new Date() - new Date(item.lastUpdated))/1000);
+
+        tr.innerHTML=`
+            <td>${item.icon?`<img class="item-icon" src="${item.icon}">`:""}</td>
+            <td>${item.name}</td>
+            <td>${item.lowestSell?item.lowestSell.toFixed(2)+" GJN ["+item.lowestCount+"]":"unknown"}</td>
+            <td>${item.secondLowest?item.secondLowest.toFixed(2)+" GJN ["+item.secondCount+"]":"Loading..."}</td>
+            <td>${item.profitGJN ? item.profitGJN.toFixed(2) + " GJN (" + item.profitPercent.toFixed(2) + "%)":"0 GJN (0%)"}</td>
+            <td>${item.buyOrders}</td>
+            <td>${item.salesPerDay !== null ? item.salesPerDay : "..."}</td>
+            <td>${item.sales24h !== null ? item.sales24h : "..."}</td>
+            <td>${secondsAgo}s ago</td>
+            <td>${item.url?`<a href="${item.url}" target="_blank">Link</a>`:"unknown"}</td>
+        `;
+        tbody.appendChild(tr);
+        fragment.appendChild(tr);
+    }
+
+    // Add a placeholder for the rows after the visible area
+    if (endIndex < totalItems) {
+        const placeholder = document.createElement('tr');
+        placeholder.className = 'placeholder';
+        placeholder.style.height = `${(totalItems - endIndex) * ROW_HEIGHT}px`;
+        fragment.appendChild(placeholder);
+    }
+
+    // Replace the entire tbody content at once for performance
+    tbody.innerHTML = '';
+    tbody.appendChild(fragment);
+}
+
+function getVisibleItems() {
+    const { startIndex, endIndex } = getVisibleRowIndices();
+    return filteredAndSortedItems.slice(startIndex, endIndex);
+}
+
+function updateStats() {
+    const rejectionRate = totalRequests > 0 ? ((failedRequests / totalRequests) * 100).toFixed(1) : "0.0";
+    const statsText = `Items Loaded: ${itemsScanned.length} (Showing: ${filteredAndSortedItems.length}) | Delay: ${minDelay}ms | Concurrency: ${concurrencyLimit} | Rejection Rate: ${rejectionRate}%`;
+    const statsEl = document.getElementById("itemStats");
+    if (statsEl.textContent !== statsText) {
+        statsEl.textContent = statsText;
+    }
+}
+
+function getVisibleRowIndices() {
+    const totalItems = filteredAndSortedItems.length;
+    const viewportHeight = window.innerHeight;
+    const scrollTop = window.scrollY;
+
+    let startIndex = Math.floor(scrollTop / ROW_HEIGHT) - 10;
+    startIndex = Math.max(0, startIndex);
+    let endIndex = Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + 10;
+    endIndex = Math.min(totalItems, endIndex);
+
+    return { startIndex, endIndex };
+}
+
+// Alias updateTable to the new function name for backwards compatibility in other parts of the code
+function updateTable() {
+    updateFiltersAndSort();
+}
+
+// --- Progress Bars ---
+function updateQuickScanProgress(current, total){
+    const bar = document.getElementById("quickScanBar");
+    const percent = Math.min(100, (current/total)*100);
+    bar.style.width = percent + "%";
+}
+function updateExactScanProgress(current, total){
+    const bar = document.getElementById("exactScanBar");
+    const percent = Math.min(100, (current/total)*100);
+    bar.style.width = percent + "%";
+}
+
+// --- Real-time Update for Last Updated ---
+function updateTimestamps() {
+    const rows = document.querySelectorAll("#resultsTable tbody tr");
+    if (rows.length === 0) return;
+
+    // Find the index of the "Last Updated" column
+    const headers = Array.from(document.querySelectorAll("#resultsTable th"));
+    const lastUpdatedIndex = headers.findIndex(th => th.textContent.includes("Last Updated"));
+    if (lastUpdatedIndex === -1) return;
+
+    for (const row of rows) {
+        const cell = row.cells[lastUpdatedIndex];
+        // The timestamp is stored on the row's dataset when it's created in updateTable()
+        const timestamp = parseInt(row.dataset.timestamp, 10);
+        if (!isNaN(timestamp)) {
+            const secondsAgo = Math.floor((new Date() - new Date(timestamp)) / 1000);
+            cell.textContent = `${secondsAgo}s ago`;
+        }
+    }
+}
+setInterval(updateTimestamps, 5000); // Update every 5 seconds, much more efficient
+
+async function updateOpenOrdersData() {
+    if (isUpdatingOpenOrders) return;
+    isUpdatingOpenOrders = true; // Prevent multiple simultaneous fetches
+    debug("Background updating 'My Open Orders' data...", "cyan");
+
+    const token = document.getElementById("tokenInput").value.trim();
+    if (!token) {
+        isUpdatingOpenOrders = false;
+        return;
+    }
+
+    try {
+        // --- Fetch Open Orders ---
+        const resp = await fetch("https://market-proxy.gaijin.net/web", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            referrer: "https://trade.gaijin.net/",
+            mode: "cors",
+            credentials: "omit",
+            body: `action=cln_get_user_open_orders&token=${token}`
+        });
+
+        const data = await resp.json();
+
+        // --- Fetch and display balance ---
+        let balanceHtml = '';
+        if (data.response && data.response.balance !== undefined) {
+            const balance = (data.response.balance / 1e4).toFixed(2);
+            const balanceDisplayEl = document.getElementById("balanceDisplay");
+            balanceDisplayEl.innerHTML = `Balance: <b>${balance} GJN</b>`;
+            // Create the HTML to be inserted into the overlay
+            balanceHtml = `<span>Balance: <b style="color:#ffd54f;">${balance} GJN</b></span>`;
+        }
+
+        const openOrdersMap = new Map();
+        if (data.response && Array.isArray(data.response)) {
+            for (const order of data.response) {
+                // We only care about currently active sell orders
+                if (order.type === 'SELL') { // The API only returns active orders, so status check is redundant
+                    openOrdersMap.set(order.market, { price: parseInt(order.localPrice) / 1e4, amount: order.amount });
+                }
+            }
+        }
+
+        async function getBooksForMarket(token, marketName, knownAppid) {
+            try {
+                let appid = knownAppid; // Use the known appid if available
+                if (!appid) { // If not, we must find it
+                    // search to find appid and exact market_name entry
+                    const searchBody = `action=cln_market_search&token=${token}&text=${encodeURIComponent(marketName)}&language=en_US&options=any_buy_orders%3Binclude_marketpairs&appid_filter=1067&count=5`;
+                    const itemResp = await fetch("https://market-proxy.gaijin.net/web", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: searchBody });
+                    const itemData = await itemResp.json();
+                    const found = itemData.response?.assets?.find(a => a.hash_name === marketName) || itemData.response?.assets?.[0];
+                    if (found) appid = found.appid;
+                    else return null;
+                }
+
+                const body = `action=cln_books_brief&token=${token}&appid=${appid}&market_name=${marketName}`;
+                const resp = await fetch("https://market-proxy.gaijin.net/web", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded", "accept": "application/json, text/plain, */*" },
+                    referrer: "https://trade.gaijin.net/",
+                    mode: "cors",
+                    credentials: "omit",
+                    body
+                });
+                const json = await resp.json();
+                return json.response || null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // Fetch user history to find purchase prices
+        let purchaseStack = {};
+        try {
+            const historyResp = await fetch("https://market-proxy.gaijin.net/web", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: `action=cln_get_user_history&token=${token}&count=100&skip=0` // Using 100, a known safe value from the history viewer
+            });
+            const historyData = await historyResp.json();
+
+            if (historyData.response?.success) {
+                // Sort all deal events by time, oldest first, to apply FIFO logic
+                const allDeals = historyData.response.events // All events are relevant for FIFO
+                    .filter(e => e.event === 'deal' || e.event === 'new_sell' || e.event === 'cancel_sell')
+                    .sort((a, b) => a.ts - b.ts);
+
+                // This populates the purchaseStack declared outside the try block
+                for (const deal of allDeals) {
+                    const marketName = deal.hashname; // Use the direct hashname from the event
+
+                    if (!purchaseStack[marketName]) {
+                        purchaseStack[marketName] = [];
+                    }
+                    const dealPrice = deal.price; // Price per item
+                    const dealCount = deal.count || 1; // Default to 1 if count is missing or 0
+                    if (deal.event === 'deal' && deal.type === 'BUY') {
+                        // Add the purchase price to the item's stack
+                        for (let i = 0; i < dealCount; i++) {
+                            purchaseStack[marketName].push(dealPrice);
+                        }
+                    } else if (deal.event === 'deal' && deal.type === 'SELL') {
+                        // A sale occurred, so remove the oldest purchase from the stack (FIFO)
+                        for (let i = 0; i < dealCount; i++) {
+                            if (purchaseStack[marketName].length > 0) {
+                                purchaseStack[marketName].shift();
+                            } else {
+                                // Sold an item we don't have a purchase record for.
+                                // This can happen if the history is truncated or item was obtained differently.
+                                // For the purpose of open orders, this means we can't track its cost.
+                                debug(`Warning: Sold ${marketName} but no purchase record found for this unit in open orders context.`, "orange");
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            debug("Could not fetch user history for profit calculation.", "orange");
+        }
+        
+        const itemsWithUnsoldPurchases = Object.values(purchaseStack).some(prices => prices.length > 0);
+        if (!itemsWithUnsoldPurchases) {
+            myOpenOrdersHtmlCache = `<div style="margin-bottom:15px; font-size:1.1em;"></div><p>No open orders found based on purchase history.</p>`;
+            return;
+        }
+
+        let totalPotentialProfit = 0;
+        let totalInvestment = 0;
+
+        // Build table of open orders with an extra column for competing sells / expected ROI
+        let tableHtml = `<table style="width:100%; border-collapse:collapse;">
+                        <tr>
+                            <th style="border-bottom:1px solid #333; padding:5px;">Icon</th>
+                            <th style="border-bottom:1px solid #333; padding:5px;">Item</th>
+                            <th style="border-bottom:1px solid #333; padding:5px;">Listed Price</th>
+                            <th style="border-bottom:1px solid #333; padding:5px;">Count</th>
+                            <th style="border-bottom:1px solid #333; padding:5px;">Potential Profit</th>
+                            <th style="border-bottom:1px solid #333; padding:5px;">Status</th>
+                            <th style="border-bottom:1px solid #333; padding:5px;">Competing Sell (Undercut)</th>
+                            <th style="border-bottom:1px solid #333; padding:5px;">Est. Sell Time</th>
+                        </tr>`;
+
+        const orderRowPromises = Object.entries(purchaseStack).map(async ([marketName, purchasePrices]) => {
+            if (purchasePrices.length === 0) {
+                return '';
+            }
+
+            const openOrder = openOrdersMap.get(marketName);
+            if (!openOrder) {
+                // Item is in our inventory but not in the active sell orders list. It might have been sold.
+                if (purchasePrices.length > 0) {
+                    // If it's not already marked as sold, mark it now with a timestamp.
+                    if (!soldItemsTracker.has(marketName)) {
+                        soldItemsTracker.set(marketName, Date.now());
+                    }
+                }
+                return '';
+            }
+
+            const scannedItem = itemsScanned.find(item => item.hash_name === marketName);
+            const iconUrl = scannedItem?.icon || '';
+            const appid = scannedItem?.appid || null;
+            const itemUrl = scannedItem?.url || `https://trade.gaijin.net/market/1067/${encodeURIComponent(marketName)}`;
+            const iconHtml = iconUrl ? `<img class="item-icon" src="${iconUrl}">` : '';
+
+            let competingHtml = '';
+            let profitHtml = '';
+            let estSellTimeHtml = '...';
+
+            const books = await getBooksForMarket(token, marketName, appid);
+            if (books && Array.isArray(books.SELL) && books.SELL.length > 0) {
+                const sellOffers = books.SELL.slice().sort((a, b) => a[0] - b[0]).map(s => ({ price: s[0] / 1e4, count: s[1] }));
+                const myPrice = openOrder.price;
+
+                // find the lowest sell strictly cheaper than myPrice (ignore equal price)
+                const competitor = sellOffers.find(s => s.price < myPrice - 0.0000001);
+                if (competitor) {
+                    competingHtml = `<div style="font-weight:bold;color:#ffb74d;">Cheaper: ${competitor.price.toFixed(2)} GJN [${competitor.count}]</div>`;
+                } else {
+                    competingHtml = '<span style="color:#0f0;">No cheaper sells</span>';
+                }
+
+                // --- Calculate Estimated Sell Time ---
+                const salesPerDay = scannedItem?.salesPerDay ? parseFloat(scannedItem.salesPerDay) : 0;
+                if (salesPerDay > 0) {
+                    const salesPerHour = salesPerDay / 24;
+                    // Count items listed at a price less than or equal to my price
+                    const competingVolume = sellOffers
+                        .filter(s => s.price <= myPrice + 0.0000001)
+                        .reduce((sum, s) => sum + s.count, 0);
+
+                    if (salesPerHour > 0) {
+                        const hoursToSell = competingVolume / salesPerHour;
+                        estSellTimeHtml = hoursToSell < 24 
+                            ? `${hoursToSell.toFixed(1)} hours` 
+                            : `${(hoursToSell / 24).toFixed(1)} days`;
+                    }
+                }
+            } else {
+                competingHtml = '<span style="color:#ccc;">No sell book data</span>';
+            }
+
+            // The oldest un-sold purchase price is the first one in the array
+            const purchasePrice = purchasePrices[0] / 1e4;
+            const myPrice = openOrder.price;
+            const proceeds = myPrice * 0.85; // After 15% Gaijin cut
+            const profitGjn = proceeds - purchasePrice;
+            const roiPercent = purchasePrice > 0 ? (profitGjn / purchasePrice) * 100 : 0;
+            const profitColor = profitGjn > 0 ? '#a5d6a7' : '#ff5252';
+
+            // Add to totals
+            totalInvestment += purchasePrice;
+            totalPotentialProfit += profitGjn;
+
+            profitHtml = `<div style="color:${profitColor};">
+                              <b>${profitGjn.toFixed(2)} GJN (${roiPercent.toFixed(2)}% ROI)</b>
+                          </div>
+                          <div style="font-size:0.8em; color:#ccc;">(Bought for ${purchasePrice.toFixed(2)} GJN)</div>`;
+
+            const itemName = (scannedItem?.name || marketName).replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            return `<tr onclick="window.open('${itemUrl}', '_blank')" style="cursor:pointer;">
+                        <td style="border-bottom:1px solid #333; padding:5px;">${iconHtml}</td>
+                        <td style="border-bottom:1px solid #333; padding:5px;"><a href="${itemUrl}" target="_blank" style="color: #E0E0E0; text-decoration: none;">${itemName}</a></td>
+                        <td style="border-bottom:1px solid #333; padding:5px;">${myPrice.toFixed(2)} GJN</td>
+                        <td style="border-bottom:1px solid #333; padding:5px;">${openOrder.amount}</td>
+                        <td style="border-bottom:1px solid #333; padding:5px;">${profitHtml}</td>
+                        <td style="border-bottom:1px solid #333; padding:5px;"><span style="color:#a5d6a7;">Listed</span></td>
+                        <td style="border-bottom:1px solid #333; padding:5px;">${competingHtml}</td>
+                        <td style="border-bottom:1px solid #333; padding:5px;">${estSellTimeHtml}</td>
+                    </tr>`;
+        });
+
+        const orderRows = await Promise.all(orderRowPromises);
+        tableHtml += orderRows.join('') + "</table>";
+
+        // --- Add recently sold items to the table ---
+        const now = Date.now();
+        let soldRowsHtml = '';
+        for (const [marketName, soldTimestamp] of soldItemsTracker.entries()) {
+            if (now - soldTimestamp > 60000) { // Remove after 60 seconds
+                soldItemsTracker.delete(marketName);
+                continue;
+            }
+            const scannedItem = itemsScanned.find(item => item.hash_name === marketName);
+            const iconHtml = scannedItem?.icon ? `<img class="item-icon" src="${scannedItem.icon}">` : '';
+            const itemName = (scannedItem?.name || marketName).replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            soldRowsHtml += `<tr style="background-color: #2a3f3f;">
+                <td style="border-bottom:1px solid #333; padding:5px;">${iconHtml}</td>
+                <td style="border-bottom:1px solid #333; padding:5px;">${itemName}</td>
+                <td style="border-bottom:1px solid #333; padding:5px;">-</td>
+                <td style="border-bottom:1px solid #333; padding:5px;">-</td>
+                <td style="border-bottom:1px solid #333; padding:5px;">-</td>
+                <td style="border-bottom:1px solid #333; padding:5px;"><b style="color:#4CAF50;">SOLD</b></td>
+                <td style="border-bottom:1px solid #333; padding:5px;">-</td>
+                <td style="border-bottom:1px solid #333; padding:5px;">-</td>
+            </tr>`;
+        }
+        tableHtml = tableHtml.replace('</table>', soldRowsHtml + '</table>');
+
+        // --- Calculate and display totals ---
+        const totalRoi = totalInvestment > 0 ? (totalPotentialProfit / totalInvestment) * 100 : 0;
+        const totalProfitColor = totalPotentialProfit > 0 ? '#a5d6a7' : '#ff5252';
+        const totalsHtml = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; font-size:1.1em; padding: 0 10px;">${balanceHtml}
+                <span>Total Investment: <b style="color:#82b1ff;">${totalInvestment.toFixed(2)} GJN</b></span>
+                <span>Total Potential Profit: <b style="color:${totalProfitColor};">${totalPotentialProfit.toFixed(2)} GJN</b></span>
+                <span>Overall ROI: <b style="color:${totalProfitColor};">${totalRoi.toFixed(2)}%</b></span>
+            </div>
+        `;
+
+        myOpenOrdersHtmlCache = totalsHtml + tableHtml;
+        debug("Successfully updated 'My Open Orders' data in the background.", "#0f0");
+
+    } catch (err) {
+        debug(`Error updating open orders data: ${err.message}`, "red");
+        myOpenOrdersHtmlCache = `<p style="color:red;">Error fetching open orders: ${err.message}</p>`;
+    } finally {
+        // If the overlay is currently open, refresh its content immediately
+        const overlay = document.getElementById("openOrdersOverlay");
+        if (overlay && overlay.style.display === "block") {
+            document.getElementById("openOrdersContent").innerHTML = myOpenOrdersHtmlCache;
+        }
+        isUpdatingOpenOrders = false;
+    }
+}
+
+document.getElementById("showOpenOrders").addEventListener("click", async () => {
+    const overlay = document.getElementById("openOrdersOverlay");
+    const content = document.getElementById("openOrdersContent");
+    overlay.style.display = "block";
+    
+    // Always fetch fresh data when the overlay is opened.
+    debug("Fetching 'My Open Orders' data on click.", "yellow");
+    content.innerHTML = '<p>Loading open orders...</p>';
+    await updateOpenOrdersData(); // This function updates the cache and then the content.
+});
+
+// --- User History ---
+document.getElementById("showHistory").addEventListener("click", () => {
+    const overlay = document.getElementById("historyOverlay");
+    overlay.style.display = "block";
+
+    if (historyCache) {
+        debug("Loading history from cache.", "lightblue");
+        processAndDrawHistory(historyCache);
+    } else {
+        debug("History cache empty, fetching from network.", "yellow");
+        fetchHistory(true); // isInitialLoad = true
+    }
+});
+
+document.getElementById("refreshHistory").addEventListener("click", () => {
+    debug("Refresh History button clicked.", "yellow");
+    fetchHistory(false); // isInitialLoad = false
+});
+
+async function fetchHistory(isInitialLoad) {
+    const token = document.getElementById("tokenInput").value.trim();
+    if (!token) return alert("Token is required to fetch history!");
+
+    const content = document.getElementById("historyContent");    
+
+    try {
+        let allEvents = [];
+        let skip = 0;
+        const count = 100; // Max count per request, as discovered
+        const maxPages = 10; // Fetch up to 1000 events total
+
+        for (let page = 0; page < maxPages; page++) {
+            content.innerHTML = `Loading transaction history (Page ${page + 1}/${maxPages})...`;
+            const resp = await fetch("https://market-proxy.gaijin.net/web", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: `action=cln_get_user_history&token=${token}&count=${count}&skip=${skip}`
+            });
+
+            const pageData = await resp.json();
+
+            if (pageData.response?.success === false) {
+                throw new Error(`API Error: ${pageData.response.error || 'Unknown error'}`);
+            }
+
+            if (!pageData.response?.success || !Array.isArray(pageData.response.events) || pageData.response.events.length === 0) {
+                debug(`History fetch: Page ${page + 1} was empty. Stopping pagination.`, "lightblue");
+                break; // No more events, stop fetching
+            }
+
+            allEvents.push(...pageData.response.events);
+            skip += count;
+
+            if (pageData.response.events.length < count) {
+                break; // Last page had fewer than max items, so we're done
+            }
+        }
+
+        if (allEvents.length === 0) {
+            content.innerHTML = "<p>The API returned no transaction history. Please ensure your token is correct and active.</p>";
+            return;
+        }
+
+        historyCache = { response: { success: true, events: allEvents } };
+        debug(`History fetched and cached. Total Events: ${allEvents.length}`, "#0f0");
+        processAndDrawHistory(historyCache);
+
+    } catch (err) {
+        content.innerHTML = `<p style="color:red;">Error fetching history: ${err}</p>`;
+        historyCache = null; // Clear cache on error
+    }
+}
+
+function processAndDrawHistory(data) {
+    const content = document.getElementById("historyContent");
+    let canvas = document.getElementById("historyChart");
+
+    // If the canvas was removed by a loading message, recreate it.
+    if (!canvas) {
+        canvas = document.createElement('canvas');
+        canvas.id = 'historyChart';
+        canvas.width = 1000;
+        canvas.height = 400;
+    }
+    content.innerHTML = ''; // Clear "Loading..." or old graph
+    content.appendChild(canvas);
+
+    // --- Correct Profit/Loss Calculation using FIFO ---
+    const purchaseStack = {};   // To track purchase prices for each item
+    const tradeLog = [];        // To store individual completed trades
+
+    // Sort all deal events by time, oldest first, to apply FIFO logic
+    const sortedDeals = data.response.events
+        .filter(e => e.event === 'deal')
+        .sort((a, b) => a.ts - b.ts);
+
+    for (const trade of sortedDeals) {
+        const marketName = trade.hashname;
+        if (!purchaseStack[marketName]) {
+            purchaseStack[marketName] = [];
+        }
+
+        const tradePrice = trade.price; // Price per item
+        const tradeCount = trade.count || 1; // Default to 1 if count is missing or 0
+
+        if (trade.type === 'BUY') {
+            // Add the purchase price to the item's stack 'dealCount' times
+            for (let i = 0; i < tradeCount; i++) {
+                purchaseStack[marketName].push(tradePrice);
+            }
+        } else if (trade.type === 'SELL') {
+            // A sale occurred, so calculate profit based on the oldest purchase (FIFO)
+            for (let i = 0; i < tradeCount; i++) {
+                if (purchaseStack[marketName].length > 0) {
+                    const purchasePrice = purchaseStack[marketName].shift() / 1e4; // Oldest purchase
+                    const sellPrice = tradePrice / 1e4;
+                    const proceeds = sellPrice * 0.85; // After 15% Gaijin cut
+                    const profit = proceeds - purchasePrice;
+
+                    const scannedItem = itemsScanned.find(item => item.hash_name === marketName);
+                    const itemName = (scannedItem?.name || marketName).replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+                    tradeLog.push({
+                        ts: trade.ts,
+                        date: new Date(trade.ts * 1000).toLocaleString(),
+                        itemName: itemName,
+                        net: profit
+                    });
+                } else {
+                    // If we sell an item but have no record of buying it,
+                    // we can't calculate profit for this specific unit.
+                    // This might happen if history is incomplete or item was obtained otherwise.
+                    // For now, we'll just skip this unit.
+                    debug(`Warning: Sold ${marketName} but no purchase record found for this unit.`, "orange");
+                }
+            }
+        }
+    }
+
+    // Sort the completed trades chronologically
+    tradeLog.sort((a, b) => a.ts - b.ts);
+
+    // Calculate cumulative profit
+    let cumulativeProfit = 0;
+    const graphData = tradeLog.map(trade => {
+        cumulativeProfit += trade.net;
+        return { ...trade, total: cumulativeProfit };
+    });
+
+    if (graphData.length > 0) {
+        drawHistoryGraph(canvas, graphData);
+    } else {
+        content.innerHTML = "<p>No completed buy/sell cycles found in history to calculate profit.</p>";
+    }
+}
+
+function drawHistoryGraph(canvas, graphData) {
+    const ctx = canvas.getContext('2d');
+    const padding = 60;
+    const width = canvas.width - 2 * padding;
+    const height = canvas.height - 2 * padding;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#E0E0E0';
+    ctx.strokeStyle = '#555';
+    ctx.font = '12px Arial';
+
+    // Find data range
+    const allValues = [...graphData.map(d => d.net), ...graphData.map(d => d.total)];
+    const maxRange = Math.max(0, ...allValues) * 1.1; // Add 10% padding
+    const minRange = Math.min(0, ...allValues) * 1.1; // Add 10% padding
+    const range = maxRange - minRange;
+    if (range === 0) return; // Avoid division by zero
+
+    // Draw Y-axis (GJN)
+    ctx.beginPath();
+    ctx.moveTo(padding, padding);
+    ctx.lineTo(padding, height + padding);
+    ctx.stroke();
+
+    // Draw X-axis (Date)
+    ctx.beginPath();
+    ctx.moveTo(padding, height + padding);
+    ctx.lineTo(width + padding, height + padding);
+    ctx.stroke();
+
+    // Draw Y-axis labels (left and right)
+    for (let i = 0; i <= 5; i++) {
+        const value = minRange + (range / 5) * i;
+        const y = height + padding - (height * (value - minRange) / range);
+        // Left side
+        ctx.fillText(value.toFixed(2), padding - 50, y + 4);
+        ctx.beginPath();
+        ctx.moveTo(padding - 5, y);
+        ctx.lineTo(padding, y);
+        ctx.stroke();
+        // Right side
+        ctx.fillText(value.toFixed(2), width + padding + 10, y + 4);
+        ctx.beginPath();
+        ctx.moveTo(width + padding, y);
+        ctx.lineTo(width + padding + 5, y);
+        ctx.stroke();
+    }
+
+    // --- Draw Daily Profit Line ---
+    ctx.beginPath();
+    ctx.strokeStyle = '#82b1ff'; // Blue for daily profit
+    ctx.lineWidth = 2;
+    graphData.forEach((trade, index) => {
+        const x = padding + (width / (graphData.length - 1 || 1)) * index;
+        const y = height + padding - (height * (trade.net - minRange) / range);
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // --- Draw Cumulative Profit Line ---
+    ctx.beginPath();
+    ctx.strokeStyle = '#ffd54f'; // Yellow for cumulative profit
+    ctx.lineWidth = 2;
+    graphData.forEach((trade, index) => {
+        const x = padding + (width / (graphData.length - 1 || 1)) * index;
+        const y = height + padding - (height * (trade.total - minRange) / range);
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Draw X-axis labels (dates) for every few points to avoid clutter
+    const labelFrequency = Math.max(1, Math.floor(graphData.length / 10));
+    graphData.forEach((trade, index) => {
+        if (index % labelFrequency !== 0) return;
+        const x = padding + (width / (graphData.length - 1 || 1)) * index;
+        // Draw X-axis labels (dates)
+        ctx.save();
+        ctx.translate(x, height + padding + 15);
+        ctx.rotate(-Math.PI / 4);
+        ctx.fillStyle = '#E0E0E0';
+        ctx.textAlign = 'right';
+        ctx.fillText(new Date(trade.ts * 1000).toISOString().split('T')[0], 0, 0);
+        ctx.restore();
+    });
+
+    // Draw Legend
+    ctx.fillStyle = '#82b1ff'; ctx.fillText('■ Per-Trade Net Profit', padding, padding - 10);
+    ctx.fillStyle = '#ffd54f'; ctx.fillText('■ Cumulative Total Profit', padding + 150, padding - 10);
+
+    // --- Add hover tooltip functionality ---
+    canvas.onmousemove = (e) => {
+        // Redraw the base graph to clear old tooltips
+        drawHistoryGraph(canvas, graphData);
+
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+
+        if (mouseX < padding || mouseX > width + padding) return;
+
+        // Find the closest data point
+        const index = Math.round((mouseX - padding) / (width / (graphData.length - 1)));
+        const dataPoint = graphData[index];
+        if (!dataPoint) return;
+
+        const x = padding + (width / (graphData.length - 1 || 1)) * index;
+
+        // Draw vertical line
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.moveTo(x, padding);
+        ctx.lineTo(x, height + padding);
+        ctx.stroke();
+
+        // Draw tooltip
+        const tooltipWidth = 250;
+        const tooltipHeight = 80;
+        let tooltipX = x + 15;
+        if (tooltipX + tooltipWidth > canvas.width) {
+            tooltipX = x - tooltipWidth - 15;
+        }
+
+        ctx.fillStyle = 'rgba(40, 40, 40, 0.9)';
+        ctx.fillRect(tooltipX, padding, tooltipWidth, tooltipHeight);
+        ctx.strokeStyle = '#888';
+        ctx.strokeRect(tooltipX, padding, tooltipWidth, tooltipHeight);
+
+        ctx.fillStyle = '#E0E0E0';
+        ctx.font = 'bold 12px Arial';
+        ctx.fillText(dataPoint.itemName, tooltipX + 10, padding + 20);
+        ctx.font = '12px Arial';
+        ctx.fillText(`Date: ${dataPoint.date}`, tooltipX + 10, padding + 38);
+        ctx.fillStyle = dataPoint.net >= 0 ? '#a5d6a7' : '#ff5252';
+        ctx.fillText(`Net: ${dataPoint.net.toFixed(2)} GJN`, tooltipX + 10, padding + 56);
+        ctx.fillStyle = '#ffd54f';
+        ctx.fillText(`Total: ${dataPoint.total.toFixed(2)} GJN`, tooltipX + 10, padding + 74);
+    };
+}
+
+// --- Overlay Close Buttons ---
+document.getElementById("closeHistory").addEventListener("click", () => {
+    debug("Close History button clicked.", "yellow");
+    const overlay = document.getElementById("historyOverlay");
+    historyCache = null; // Clear cache on close to ensure fresh data next time
+    if (overlay) overlay.style.display = "none";
+});
+
+document.getElementById("closeOpenOrders").addEventListener("click", () => {
+    debug("Close Open Orders button clicked.", "yellow");
+    const overlay = document.getElementById("openOrdersOverlay");
+    if (overlay) overlay.style.display = "none";
+});
+</script>
+</body>
+</html>
