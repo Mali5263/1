@@ -95,6 +95,20 @@ th.sorted-desc::after { content: " ▼"; }
             <button id="showSalesLog">Show Sales Log</button>
         </div>
     </details>
+    <details class="control-category">
+        <summary>Test Proxy</summary>
+        <div class="category-content">
+            <label>Proxy URL:
+                <input type="text" id="testProxyURL" placeholder="https://your.proxy:port">
+            </label>
+            <button id="testProxy">Test Proxy</button>
+            <div id="testProxyResults" style="margin-top: 10px;">
+                <span id="testProxySuccesses">Successes: 0</span>
+                <span id="testProxyFailures">Failures: 0</span>
+                <span id="testProxyRate">Failure Rate: 0.0%</span>
+            </div>
+        </div>
+    </details>
 </div>
 
 <div class="category-content">
@@ -305,7 +319,6 @@ function setupProxyInputs() {
 
     // If no proxies are saved in localStorage, populate with a default list
     if (savedProxies === null || savedProxies.length === 0) {
-        savedProxies = ['https://corsproxy.io/?', 'https://thingproxy.freeboard.io/fetch/', 'https://api.allorigins.win/raw?url='];
     }
     if (savedProxies.length > 0) {
         savedProxies.forEach(proxyUrl => addProxyInput(proxyUrl));
@@ -1747,6 +1760,67 @@ document.getElementById("closeOpenOrders").addEventListener("click", () => {
     if (overlay) overlay.style.display = "none";
 });
 
+// --- Test Proxy Functionality ---
+document.getElementById("testProxy").addEventListener("click", async () => {
+    const proxyURL = document.getElementById("testProxyURL").value.trim();
+    const scanToken = document.getElementById("scanTokenInput").value.trim() || document.getElementById("tokenInput").value.trim();
+
+    if (!proxyURL) {
+        return alert("Please enter a Proxy URL to test.");
+    }
+    if (!scanToken) {
+        return alert("A Scan Token (or Main Token) is required to test the proxy!");
+    }
+
+    let successes = 0;
+    let failures = 0;
+
+    for (let i = 0; i < 100; i += 10) {
+        try {
+            const body = `action=cln_market_search&token=${scanToken}&skip=${i}&count=10&text=&language=en_US&options=any_buy_orders%3Binclude_marketpairs&appid_filter=1067`;
+            const resp = await fetch(`${proxyURL}https://market-proxy.gaijin.net/web`, {
+                method: "POST",
+                mode: "cors",
+                credentials: "omit",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Origin": "https://trade.gaijin.net"
+                },
+                body
+            });
+
+            const data = await resp.json();
+            if (data.response && Array.isArray(data.response.assets)) {
+                successes += data.response.assets.length;
+            } else {
+                failures += 10;
+            }
+        } catch (e) {
+            failures += 10;
+        }
+
+        // Update results display
+        document.getElementById("testProxySuccesses").textContent = `Successes: ${successes}`;
+        document.getElementById("testProxyFailures").textContent = `Failures: ${failures}`;
+        const failureRate = ((failures / (successes + failures)) * 100).toFixed(1);
+        document.getElementById("testProxyRate").textContent = `Failure Rate: ${failureRate}%`;
+
+        // Short delay between batches
+        await new Promise(r => setTimeout(r, 200));
+    }
+
+    // Final results display
+    document.getElementById("testProxySuccesses").textContent = `Successes: ${successes}`;
+    document.getElementById("testProxyFailures").textContent = `Failures: ${failures}`;
+    const failureRate = ((failures / (successes + failures)) * 100).toFixed(1);
+    document.getElementById("testProxyRate").textContent = `Failure Rate: ${failureRate}%`;
+
+    debug(`Proxy test complete. Successes: ${successes}, Failures: ${failures}, Failure Rate: ${failureRate}%`, failureRate > 20 ? "orange" : "#0f0");
+});
+
+
+
+
 // --- Sales Log Functionality ---
 document.getElementById("showSalesLog").addEventListener("click", () => {
     const overlay = document.getElementById("salesLogOverlay");
@@ -1874,6 +1948,7 @@ function loadAllDataFromClipboard() {
 }); // End of DOMContentLoaded
 
 </script>
+
 
 </body>
 </html>
