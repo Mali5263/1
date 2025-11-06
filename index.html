@@ -194,6 +194,7 @@ let historyCache = null; // Cache for the user history data
 let salesLog = []; // To store data of sold items
 let isScanTokenUnsafe = false; // Flag for the new security check
 let isSecurityCheckComplete = false; // Flag to ensure initial check is done
+let proxyIndex = 0; // Initialize proxyIndex for proxy rotation
 
 let mainTokenUsageCount = 0;
 // Statistics tracking
@@ -208,12 +209,18 @@ const getProxy = () => {
     if (!useProxy) {
         return ''; // Return empty string if proxy is disabled
     }
-    const inputs = document.querySelectorAll('#proxy-list-container input');
-    const activeProxies = Array.from(inputs)
-        .map((input, index) => ({ url: input.value.trim(), index })) // Keep track of the index
+    const inputs = document.querySelectorAll('#proxy-list-container input'); // Only map to the URL string
+    const activeProxies = Array.from(inputs) // Only map to the URL string
+        .map((input) => input.value.trim()) // Only map to the URL string
         .filter(url => url.length > 0);
 
-    return activeProxies.length > 0 ? activeProxies[proxyIndex++ % activeProxies.length] : '';
+    // If no active proxies are configured, return empty string
+    if (activeProxies.length === 0) {
+        return '';
+    }
+
+    // Return the URL string from the selected proxy
+    return activeProxies[proxyIndex++ % activeProxies.length];
 };
 
 
@@ -1796,10 +1803,20 @@ function renderSalesLog() {
     salesLog.sort((a, b) => b.timestamp - a.timestamp);
 
     let tableHtml = `<table style="width:100%; border-collapse:collapse;">
-        <tr> 
-            <th>Timestamp</th><th>Item Name</th><th>Sell Price</th><th>Buy Price</th><th>Time to Sell</th><th>24h Sales</th><th>Sales/Day</th><th>Price Gap</th>
+        <thead>
+            <tr> 
+                <th>Timestamp</th><th>Item Name</th><th>Sell Price</th><th>Buy Price</th><th>Time to Sell</th><th>24h Sales</th><th>Sales/Day</th><th>Price Gap</th>
+            </tr>
+        </thead>
+        <tbody>`;
+
+    for (const log of salesLog) {
+        tableHtml += `<tr>
+            <td>${new Date(log.timestamp).toLocaleString()}</td><td>${log.itemName || 'Unknown'}</td><td>${typeof log.sellPrice === 'number' ? log.sellPrice.toFixed(2) + ' GJN' : 'N/A'}</td><td>${typeof log.buyPrice === 'number' ? log.buyPrice.toFixed(2) + ' GJN' : 'N/A'}</td><td>${log.timeToSell || 'N/A'}</td><td>${log.sales24h || 'N/A'}</td><td>${log.salesPerDay || 'N/A'}</td><td>${log.priceGap || 'N/A'}</td>
         </tr>`;
-tml;
+    }
+    tableHtml += '</tbody></table>';
+    content.innerHTML = tableHtml;
 }
 
 
