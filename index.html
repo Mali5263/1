@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>War Thunder Marketplace Scanner</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 body { font-family: Arial, sans-serif; background-color: #121212; color: #E0E0E0; margin: 0; padding: 0; font-size: 14px; }
  header { background-color: #1E1E1E; padding: 8px 15px; font-size: 18px; font-weight: bold; }
@@ -32,10 +32,21 @@ th.sorted-desc::after { content: " ▼"; }
 .control-category summary { font-weight: bold; padding: 5px 10px; cursor: pointer; background-color: #2a2a2a; border-radius: 3px; }
 .control-category summary:hover { background-color: #333; }
 .control-category[open] > summary { border-bottom: 1px solid #333; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
-.category-content { padding: 10px; display: flex; flex-wrap: wrap; gap: 10px 15px; align-items: center; }
+.category-content { padding: 10px; display: flex; flex-wrap: wrap; gap: 10px 15px; align-items: center; width: 100%; box-sizing: border-box;}
 .control-category {
     border: 1px solid #333;
     border-radius: 4px;
+}
+
+/* Media query for mobile devices */
+@media (max-width: 600px) {
+    .controls {
+        flex-direction: column; /* Stack controls vertically */
+        align-items: stretch; /* Stretch items to fill the width */
+    }
+    .controls label, .controls input, .controls button {
+        width: 100%; /* Make labels, inputs, and buttons fill the container */
+    }
 }
 </style>
 </head>
@@ -1896,7 +1907,7 @@ function renderSalesLog() {
 
 
 // --- Data Management ---
-document.getElementById("saveToClipboard").addEventListener("click", saveAllDataToClipboard);
+document.getElementById("saveToClipboard").addEventListener("click", saveAllDataToClipboard); // Persist to localStorage
 document.getElementById("loadFromClipboard").addEventListener("click", loadAllDataFromClipboard);
 
 function saveAllDataToClipboard() {
@@ -1944,6 +1955,7 @@ function loadAllDataFromClipboard() {
         debug(`Error parsing data from clipboard: ${e.message}`, "red");
     }
 }
+
 
 }); // End of DOMContentLoaded
 
