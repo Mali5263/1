@@ -97,6 +97,18 @@ th.sorted-desc::after { content: " ▼"; }
     </details>
 </div>
 
+<div class="category-content">
+    <details class="control-category" open>
+        <summary>Data Management</summary>
+        <div class="category-content" style="flex-direction: column; align-items: flex-start; gap: 5px;">
+            <button id="saveToClipboard">Save All Data to Clipboard</button>
+            <label for="clipboardDataText" style="margin-top: 10px;">Paste Data to Load:</label>
+            <textarea id="clipboardDataText" placeholder="Paste your saved data string here..." style="width: 95%; height: 80px; background-color: #222; color: #ccc; border: 1px solid #888; padding: 5px;"></textarea>
+            <button id="loadFromClipboard">Load Data from Textbox</button>
+        </div>
+    </details>
+</div>
+
 <div id="itemCount" style="display: flex; justify-content: space-between; align-items: center; padding: 0 20px;">
     <span id="itemStats">Items Loaded: 0 | Delay: 50ms | Concurrency: 12 | Rejection Rate: 0.0%</span>
     <span id="balanceDisplay" style="font-size: 0.9em; color: #888;"></span>
@@ -1787,14 +1799,59 @@ function renderSalesLog() {
         <tr> 
             <th>Timestamp</th><th>Item Name</th><th>Sell Price</th><th>Buy Price</th><th>Time to Sell</th><th>24h Sales</th><th>Sales/Day</th><th>Price Gap</th>
         </tr>`;
+tml;
+}
 
-    for (const log of salesLog) {
-        tableHtml += `<tr>
-            <td>${new Date(log.timestamp).toLocaleString()}</td><td>${log.itemName || 'Unknown'}</td><td>${typeof log.sellPrice === 'number' ? log.sellPrice.toFixed(2) + ' GJN' : 'N/A'}</td><td>${typeof log.buyPrice === 'number' ? log.buyPrice.toFixed(2) + ' GJN' : 'N/A'}</td><td>${log.timeToSell || 'N/A'}</td><td>${log.sales24h || 'N/A'}</td><td>${log.salesPerDay || 'N/A'}</td><td>${log.priceGap || 'N/A'}</td>
-        </tr>`;
+
+
+// --- Data Management ---
+document.getElementById("saveToClipboard").addEventListener("click", saveAllDataToClipboard);
+document.getElementById("loadFromClipboard").addEventListener("click", loadAllDataFromClipboard);
+
+function saveAllDataToClipboard() {
+    debug("Saving all application data to clipboard...", "yellow");
+    try {
+        const dataToSave = {};
+        // Iterate over all keys in localStorage for this origin
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            dataToSave[key] = localStorage.getItem(key);
+        }
+
+        const jsonString = JSON.stringify(dataToSave, null, 2);
+        navigator.clipboard.writeText(jsonString).then(() => {
+            alert("All application data has been copied to your clipboard.");
+            debug("Successfully copied all data to clipboard.", "#0f0");
+        }, (err) => {
+            alert("Failed to copy data to clipboard. See debug log for details.");
+            debug(`Error copying to clipboard: ${err.message}`, "red");
+        });
+ 
+    } catch (e) {
+        alert("An error occurred while preparing the data. See debug log for details.");
+        debug(`Error in saveAllDataToClipboard: ${e.message}`, "red");
     }
-    tableHtml += '</table>';
-    content.innerHTML = tableHtml;
+}
+
+function loadAllDataFromClipboard() {
+    const jsonString = document.getElementById("clipboardDataText").value;
+    if (!jsonString) {
+        debug("Load from textbox cancelled: Textbox is empty.", "orange");
+        return;
+    }
+
+    try {
+        const dataToLoad = JSON.parse(jsonString);
+        localStorage.clear(); // Clear old data
+        Object.keys(dataToLoad).forEach(key => {
+            localStorage.setItem(key, dataToLoad[key]);
+        });
+        alert("Data successfully loaded. The page will now reload to apply all changes.");
+        window.location.reload();
+    } catch (e) {
+        alert("Failed to parse the data. Please ensure you have copied the entire string correctly.");
+        debug(`Error parsing data from clipboard: ${e.message}`, "red");
+    }
 }
 
 }); // End of DOMContentLoaded
