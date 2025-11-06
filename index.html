@@ -4,15 +4,15 @@
 <meta charset="UTF-8">
 <title>War Thunder Marketplace Scanner</title>
 <style>
-body { font-family: Arial, sans-serif; background-color: #121212; color: #E0E0E0; margin: 0; padding: 0; }
- header { background-color: #1E1E1E; padding: 10px 20px; font-size: 20px; font-weight: bold; }
-.controls { padding: 10px 20px; background-color: #1A1A1A; display: flex; flex-wrap: wrap; gap: 20px; align-items: center; }
+body { font-family: Arial, sans-serif; background-color: #121212; color: #E0E0E0; margin: 0; padding: 0; font-size: 14px; }
+ header { background-color: #1E1E1E; padding: 8px 15px; font-size: 18px; font-weight: bold; }
+.controls { padding: 8px 15px; background-color: #1A1A1A; display: flex; flex-wrap: wrap; gap: 10px 15px; align-items: center; }
 .controls label { display: flex; align-items: center; gap: 5px; }
-input[type=number], input[type=text] { margin-left: 5px; }
-button { background-color: #2965FF; color: white; border: none; padding: 8px 16px; cursor: pointer; border-radius: 4px; }
+input[type=number], input[type=text] { margin-left: 5px; padding: 4px; }
+button { background-color: #2965FF; color: white; border: none; padding: 6px 12px; cursor: pointer; border-radius: 4px; font-size: 13px; }
 button:hover { background-color: #3F7EFF; }
-table { width: calc(100% - 40px); border-collapse: collapse; margin: 20px; text-align: left; table-layout: fixed; }
-th, td { padding: 8px; border-bottom: 1px solid #333; word-wrap: break-word; }
+table { width: calc(100% - 30px); border-collapse: collapse; margin: 15px; text-align: left; table-layout: fixed; }
+th, td { padding: 6px; border-bottom: 1px solid #333; word-wrap: break-word; }
 th { background-color: #1E1E1E; }
 tr.low { background-color: #FF5252; }
 tr.placeholder { height: 30px; /* Approximate row height */ }
@@ -22,12 +22,21 @@ tr.loading { background-color: #2A3F3F; }
 .progress-container { margin: 20px; width: calc(100% - 40px); background-color: #333; height: 20px; border-radius: 10px; overflow: hidden; position: relative; }
 .progress-bar { height: 50%; width: 0%; transition: width 0.2s; }
 #quickScanBar { background-color: #2965FF; position: absolute; top: 0; left: 0; }
-#exactScanBar { background-color: #4CAF50; position: absolute; bottom: 0; left: 0; }
-.item-icon { width: 50px; height: 50px; object-fit: contain; }
-#itemCount { margin: 0 20px; font-weight: bold; }
-#debug { font-family: monospace; white-space: pre-wrap; border:1px solid #888; padding:5px; height:200px; overflow-y:auto; margin:10px 20px; background-color:#222; color:#ccc;}
+#exactScanBar { background-color: #4CAF50; position: absolute; bottom: 0; left: 0; } 
+.item-icon { width: 40px; height: 40px; object-fit: contain; vertical-align: middle; }
+#itemCount { margin: 0 15px; font-weight: bold; }
+#debug { font-family: monospace; white-space: pre-wrap; border:1px solid #888; padding:5px; height:150px; overflow-y:auto; margin:10px 15px; background-color:#222; color:#ccc;}
 th.sorted-asc::after { content: " ▲"; }
 th.sorted-desc::after { content: " ▼"; }
+.control-category { border: 1px solid #333; border-radius: 4px; margin-bottom: 10px; }
+.control-category summary { font-weight: bold; padding: 5px 10px; cursor: pointer; background-color: #2a2a2a; border-radius: 3px; }
+.control-category summary:hover { background-color: #333; }
+.control-category[open] > summary { border-bottom: 1px solid #333; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.category-content { padding: 10px; display: flex; flex-wrap: wrap; gap: 10px 15px; align-items: center; }
+.control-category {
+    border: 1px solid #333;
+    border-radius: 4px;
+}
 </style>
 </head>
 <body>
@@ -36,38 +45,56 @@ th.sorted-desc::after { content: " ▼"; }
 </header>
 
 <div class="controls">
-    <label>Marketplace URL/Token:
-        <input type="text" id="tokenInput" placeholder="Enter URL or token">
-    </label>
-    <button id="generateToken">Generate Token</button>
-    <label>Min Buy Orders:
-        <input type="number" id="minBuy" value="10" min="0" max="500">
-    </label>
-    <label>Min Profit %:
-        <input type="number" id="minProfit" value="5" min="0" max="100">
-    </label>
-    <label>Min Price (GJN):
-        <input type="number" id="minPrice" value="0" min="0">
-    </label>
-    <label>Max Price (GJN):
-        <input type="number" id="maxPrice" value="1000" min="0">
-    </label>
-    <label>Max First Price Sell Orders:
-        <input type="number" id="maxFirstCount" value="9999" min="0">
-    </label>
-    <label>Max Second Price Sell Orders:
-        <input type="number" id="maxSecondCount" value="9999" min="0">
-    </label>
-    <label>
-        <input type="checkbox" id="hideTrophies" checked> Hide Trophies/Keys
-    </label>
-    <label>
-        <input type="checkbox" id="autoUpdate"> Auto Update
-    </label>
-    <button id="startScan">Start Scan</button>
-    <button id="stopScan">Stop Scan</button>
-<button id="showOpenOrders">My Open Orders</button>
-<button id="showHistory">My History</button>
+    <details class="control-category" open>
+        <summary>Authentication</summary>
+        <div class="category-content">
+            <label>Main/User Token:
+                <input type="text" id="tokenInput" placeholder="Main account token (for orders/history)">
+                <span id="mainTokenUsage" style="font-size: 0.8em; color: #888; margin-left: 5px;">(Usage: 0)</span>
+            </label>
+            <label>Scan Token:
+                <input type="text" id="scanTokenInput" placeholder="Secondary token for scanning">
+            </label>
+            <button id="generateToken">Generate Token</button>
+        </div>
+    </details>
+    <details class="control-category">
+        <summary>Proxy Settings</summary>
+        <div class="category-content" style="flex-direction: column; align-items: flex-start;">
+            <label style="margin-bottom: 10px;">
+                <input type="checkbox" id="useProxy"> Use CORS Proxy
+                <span style="font-size: 0.8em; color: #888; margin-left: 5px;">(Required for GitHub Pages)</span>
+            </label>
+            <div id="proxy-list-container" style="display: flex; flex-direction: column; gap: 5px; width: 95%;">
+                <!-- Proxy inputs will be dynamically added here -->
+            </div>
+        </div>
+    </details>
+    <details class="control-category">
+        <summary>Scan Filters</summary>
+        <div class="category-content">
+            <label>Min Buy Orders: <input type="number" id="minBuy" value="10" min="0" max="500"></label>
+            <label>Min Profit %: <input type="number" id="minProfit" value="5" min="0" max="100"></label>
+            <label>Min Price (GJN): <input type="number" id="minPrice" value="0" min="0"></label>
+            <label>Max Price (GJN): <input type="number" id="maxPrice" value="1000" min="0"></label>
+            <label>Max First Price Sell Orders: <input type="number" id="maxFirstCount" value="9999" min="0"></label>
+            <label>Max Second Price Sell Orders: <input type="number" id="maxSecondCount" value="9999" min="0"></label>
+            <label><input type="checkbox" id="hideTrophies" checked> Hide Trophies/Keys</label>
+        </div>
+    </details>
+    <details class="control-category" open>
+        <summary>Actions</summary>
+        <div class="category-content">
+            <label>
+                <input type="checkbox" id="autoUpdate"> Auto Update
+            </label>
+            <button id="startScan">Start Scan</button>
+            <button id="stopScan">Stop Scan</button>
+            <button id="showOpenOrders">My Open Orders</button>
+            <button id="showHistory">My History</button>
+            <button id="showSalesLog">Show Sales Log</button>
+        </div>
+    </details>
 </div>
 
 <div id="itemCount" style="display: flex; justify-content: space-between; align-items: center; padding: 0 20px;">
@@ -120,7 +147,19 @@ th.sorted-desc::after { content: " ▼"; }
     </div>
 </div>
 
+<!-- Overlay for Sales Log -->
+<div id="salesLogOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background-color:rgba(0,0,0,0.7); z-index:1000; color: #E0E0E0;">
+    <div style="position:relative; margin: 5% auto; padding:20px; width:80%; background-color:#1E1E1E; border-radius:8px; max-height: 80vh; overflow-y: auto;">
+        <button id="closeSalesLog" style="position:absolute; top:10px; right:10px; background-color:#FF5252; color:white; border:none; padding:5px 10px; cursor:pointer; border-radius: 4px;">Close</button>
+        <h2>My Sales Log</h2>
+        <p style="font-size: 0.9em; color: #aaa;">This log contains real-time sales and historical sales data generated from your transaction history.</p>
+        <div id="salesLogContent"></div>
+    </div>
+</div>
+
 <script>
+document.addEventListener("DOMContentLoaded", function() {
+
 let stopFlag = false;
 let itemsScanned = [];
 let pendingExactQueue = [];
@@ -135,15 +174,36 @@ let salesQueueRunning = false;
 let filteredAndSortedItems = [];
 const ROW_HEIGHT = 68; // Approximate height of a row in pixels
 let continuousUpdateRunning = false;
+let openOrdersUpdateInterval = null;
 let myOpenOrdersHtmlCache = '<p>Enable "Auto Update" to see your open orders.</p>';
 let isUpdatingOpenOrders = false;
 let soldItemsTracker = new Map(); // Track recently sold items
 let historyCache = null; // Cache for the user history data
+let salesLog = []; // To store data of sold items
+let isScanTokenUnsafe = false; // Flag for the new security check
+let isSecurityCheckComplete = false; // Flag to ensure initial check is done
 
+let mainTokenUsageCount = 0;
 // Statistics tracking
 let totalRequests = 0;
 let failedRequests = 0;
 let successfulRequests = 0;
+
+// --- Proxy Rotation ---
+const getProxy = () => {
+
+    const useProxy = document.getElementById("useProxy").checked;
+    if (!useProxy) {
+        return ''; // Return empty string if proxy is disabled
+    }
+    const inputs = document.querySelectorAll('#proxy-list-container input');
+    const activeProxies = Array.from(inputs)
+        .map((input, index) => ({ url: input.value.trim(), index })) // Keep track of the index
+        .filter(url => url.length > 0);
+
+    return activeProxies.length > 0 ? activeProxies[proxyIndex++ % activeProxies.length] : '';
+};
+
 
 // --- Utility Functions ---
 function debug(msg, color="#ddd") {
@@ -154,13 +214,23 @@ function debug(msg, color="#ddd") {
 }
 
 // --- Save & Load Inputs from localStorage ---
-const inputIds = ["minBuy","minProfit","minPrice","maxPrice","maxFirstCount","maxSecondCount","hideTrophies","autoUpdate"];
+const inputIds = ["tokenInput", "scanTokenInput", "useProxy", "minBuy","minProfit","minPrice","maxPrice","maxFirstCount","maxSecondCount","hideTrophies", "autoUpdate"];
 function saveInputs(){
     inputIds.forEach(id=>{
         const el = document.getElementById(id);
-        if(el.type==="checkbox") localStorage.setItem(id, el.checked);
-        else localStorage.setItem(id, el.value);
+        if (el.type === "checkbox") {
+            localStorage.setItem(id, el.checked);
+        } else {
+            localStorage.setItem(id, el.value);
+        }
     });
+    // Save proxy inputs separately
+    const proxyInputs = document.querySelectorAll('#proxy-list-container input');
+    const proxyValues = Array.from(proxyInputs)
+        .map(input => input.value.trim())
+        .filter(value => value.length > 0);
+    localStorage.setItem('proxyList', JSON.stringify(proxyValues));
+
 }
 function loadInputs(){
     inputIds.forEach(id=>{
@@ -170,9 +240,65 @@ function loadInputs(){
             if(el.type==="checkbox") el.checked = saved==="true";
             else el.value = saved;
         }
+        // Ensure autoUpdate is always off on load
+        const autoUpdateEl = document.getElementById("autoUpdate");
+        if (autoUpdateEl) {
+            autoUpdateEl.checked = false;
+        }
     });
 }
+
 loadInputs();
+
+// --- Dynamic Proxy Input Management ---
+function setupProxyInputs() {
+    const container = document.getElementById('proxy-list-container');
+    if (!container) return;
+
+    const addProxyInput = (value = '') => {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = 'e.g., https://corsproxy.io/?';
+        input.value = value;
+        input.style.width = '95%';
+        container.appendChild(input);
+    };
+
+   container.addEventListener('input', (e) => {
+        if (e.target.tagName === 'INPUT') {
+            const allInputs = Array.from(container.querySelectorAll('input'));
+            const targetIndex = allInputs.indexOf(e.target);
+
+            // If typing in the last box, add a new one
+            if (targetIndex === allInputs.length - 1 && e.target.value.trim() !== '') {
+                addProxyInput();
+            }
+            // If a box is cleared and it's not the last one, remove it
+            else if (e.target.value.trim() === '' && targetIndex < allInputs.length - 1) {
+                e.target.remove();
+            }
+            saveInputs(); // Save on any input change
+        }
+    });
+
+    // Load saved proxies
+    let savedProxies = JSON.parse(localStorage.getItem('proxyList'));
+
+    // If no proxies are saved in localStorage, populate with a default list
+    if (savedProxies === null || savedProxies.length === 0) {
+        savedProxies = ['https://corsproxy.io/?', 'https://thingproxy.freeboard.io/fetch/', 'https://api.allorigins.win/raw?url='];
+    }
+    if (savedProxies.length > 0) {
+        savedProxies.forEach(proxyUrl => addProxyInput(proxyUrl));
+    }
+
+    // Always ensure there's at least one empty input at the end
+    addProxyInput();
+}
+
+setupProxyInputs();
+
+
 
 function saveItemsToCache() {
     if (itemsScanned.length > 0) {
@@ -196,6 +322,24 @@ function loadItemsFromCache() {
 }
 loadItemsFromCache();
 
+// --- Sales Log Persistence ---
+function saveSalesLog() {
+    if (salesLog.length > 0) {
+        localStorage.setItem('salesLogCache', JSON.stringify(salesLog));
+        debug(`Saved ${salesLog.length} sales log entries.`, 'lightblue');
+    }
+}
+
+function loadSalesLog() {
+    const cachedLogJSON = localStorage.getItem('salesLogCache');
+    if (cachedLogJSON) {
+        salesLog = JSON.parse(cachedLogJSON);
+        debug(`Loaded ${salesLog.length} sales log entries from cache.`, 'lightblue');
+    }
+}
+loadSalesLog();
+
+
 // --- Sorting state ---
 let currentSort = JSON.parse(localStorage.getItem("currentSort")) || { column: 'Profit %', asc: false };
 
@@ -205,32 +349,36 @@ inputIds.forEach(id => {
         saveInputs();
         updateTable();
         
-        // Handle auto-update toggle
-        if(id === "autoUpdate"){
-            const autoUpdateChecked = document.getElementById("autoUpdate").checked;
-            if(autoUpdateChecked && itemsScanned.length > 0 && !continuousUpdateRunning){
-                const token = document.getElementById("tokenInput").value.trim();
-                if(token){
-                    debug("Auto Update enabled, starting background updates...", "#0f0");
-                    startContinuousUpdate(token);
-                }
-            } else if(!autoUpdateChecked){
-                continuousUpdateRunning = false;
-                debug("Auto Update disabled. Background updates stopped.", "orange");
-            }
+        if (id === "scanTokenInput") {
+            validateScanToken();
         }
     });
 });
 
+// Handle auto-update toggle separately
+document.getElementById("autoUpdate").addEventListener("change", () => {
+    const autoUpdateChecked = document.getElementById("autoUpdate").checked;
+    if (autoUpdateChecked && itemsScanned.length > 0 && !continuousUpdateRunning) {
+        const scanToken = document.getElementById("scanTokenInput").value.trim() || document.getElementById("tokenInput").value.trim();
+        if (scanToken) {
+            debug("Auto Update enabled, starting background updates...", "#0f0");
+            startContinuousUpdate(scanToken);
+        }
+    } else if (!autoUpdateChecked) {
+        continuousUpdateRunning = false;
+        debug("Auto Update disabled.", "orange");
+    }
+});
+
 // Listen for scroll events on the window to handle virtual rendering
 window.addEventListener('scroll', () => {
-    renderVisibleRows();
+    renderVisibleRows(); // This function is not defined in the provided context, assuming it exists elsewhere.
 });
 
 // --- Token Generation ---
 document.getElementById("generateToken").addEventListener("click", ()=>{
     debug("Generate Token button clicked.", "yellow");
-    const token = "market_" + Math.random().toString(36).substring(2,12);
+    const token = "market_" + Math.random().toString(36).substring(2,12); // This generates a temporary token
     document.getElementById("tokenInput").value = token;
     saveInputs();
     debug("Generated temporary token: " + token, "#0f0");
@@ -239,31 +387,91 @@ document.getElementById("generateToken").addEventListener("click", ()=>{
 // --- Start / Stop Scan ---
 document.getElementById("startScan").addEventListener("click", () => {
     debug("Start Scan button clicked. Resetting state and initiating full scan.", "yellow");
+    const scanToken = document.getElementById("scanTokenInput").value.trim() || document.getElementById("tokenInput").value.trim();
+
+    if (!scanToken) {
+        return alert("A Scan Token (or Main Token) is required to start scanning!");
+    }
+
+    if (!isSecurityCheckComplete) {
+        alert("Please wait a moment for the initial security check to complete before starting a scan.");
+        return;
+    }
+
+    if (isScanTokenUnsafe) {
+        alert("Scan aborted! The current Scan Token has a purchase history and is considered unsafe for scanning. Please use a different token.");
+        return;
+    }
+
     stopFlag = false;
-    startFullScan();
+    startFullScan(scanToken);
 });
 document.getElementById("stopScan").addEventListener("click", () => {
     debug("Stop Scan button clicked. Setting stopFlag to true.", "yellow");
-    stopFlag = true;
+    stopFlag = true;    
     continuousUpdateRunning = false;
     debug("Scan stopped by user.", "orange");
 });
 
+// --- New Security Check Logic ---
+async function hasBuyHistory(token) {
+    if (!token) return false;    
+    const proxy = getProxy();
+    try {
+
+        const resp = await fetch(`${proxy}https://market-proxy.gaijin.net/web`, {
+            method: "POST", // Added mode and credentials for consistency
+            mode: "cors",
+            credentials: "omit",
+            headers: { 
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Origin": "https://trade.gaijin.net" // Required by some CORS proxies
+            },
+            body: `action=cln_get_user_history&token=${token}&count=10&skip=0`
+        });
+
+        const data = await resp.json();
+        if (data.response?.success && Array.isArray(data.response.events)) {
+            return data.response.events.some(e => e.event === 'deal' && e.type === 'BUY');
+        }
+        return false;
+    } catch (e) {
+        debug(`Security check failed: ${e.message}`, "orange");
+
+        return false; // Fail safe
+    }
+}
+
+async function validateScanToken() {
+    const scanToken = document.getElementById("scanTokenInput").value.trim();
+    isSecurityCheckComplete = false; // Mark check as in-progress
+    if (await hasBuyHistory(scanToken)) {
+        isScanTokenUnsafe = true;
+        alert("SECURITY WARNING: The entered Scan Token has a purchase history. Scanning with this token is blocked.");
+        debug("Security check FAILED: Scan token has a purchase history.", "red");
+    } else {
+        isScanTokenUnsafe = false;
+        debug("Security check PASSED: Scan token appears clean.", "#0f0");
+    }
+    isSecurityCheckComplete = true; // Mark check as complete
+}
+
+// Run the check once on page load
+validateScanToken();
+
 // --- Main Scan Functions ---
-async function startFullScan(){
-    const token = document.getElementById("tokenInput").value.trim();
-    if(!token) return alert("Token or URL is required!");
+async function startFullScan(scanToken){
     itemsScanned = [];
     pendingExactQueue = [];
     salesHistoryQueue = [];
     processingHistory = false;
     document.getElementById("resultsTable").querySelector("tbody").innerHTML = "";
-    await scanAllItemsParallel(token);
+    await scanAllItemsParallel(scanToken);
     
     // Start continuous update if enabled
     if(document.getElementById("autoUpdate").checked && !stopFlag){
         debug("Auto Update enabled, starting background updates...", "#0f0");
-        startContinuousUpdate(token);
+        startContinuousUpdate(scanToken); // Pass the confirmed token
     }
 }
 
@@ -296,8 +504,18 @@ async function startContinuousUpdate(token){
 
 // --- Fetch and scan (same as original) ---
 async function fetchBatch(token, skip, count){
-    const body = `action=cln_market_search&token=${token}&skip=${skip}&count=${count}&text=&language=en_US&options=any_buy_orders%3Binclude_marketpairs&appid_filter=1067`;
-    const resp = await fetch("https://market-proxy.gaijin.net/web", { method:"POST", headers: {"Content-Type": "application/x-www-form-urlencoded"}, body });
+    const proxy = getProxy();
+    const body = `action=cln_market_search&token=${token}&skip=${skip}&count=${count}&text=&language=en_US&options=any_buy_orders%3Binclude_marketpairs&appid_filter=1067`;    
+    const resp = await fetch(`${proxy}https://market-proxy.gaijin.net/web`, {
+        method: "POST",
+        mode: "cors", // Explicitly set mode
+        credentials: "omit", // Explicitly set credentials
+        headers: { 
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Origin": "https://trade.gaijin.net" // Required by some CORS proxies
+        },
+        body
+    });
     return await resp.json();
 }
 async function fetchBatchWithRetry(token, skip, count, retries=3){
@@ -374,7 +592,7 @@ async function handleBatchData(token, data){
         appid: a.appid,
         hash_name: a.hash_name,
         name: a.name,
-        icon: a.icon,
+        icon: a.icon ? a.icon.replace(/\/\d+x\d+\//, '/64x64/') : '',
         url: `https://trade.gaijin.net/market/${a.appid}/${encodeURIComponent(a.hash_name)}`,
         lowestSell: a.price/1e4,
         lowestCount: a.depth,
@@ -429,16 +647,20 @@ async function processExactQueue(token){
 async function exactScanItem(token, item, retries=3){
     if(stopFlag) return;
 
+    const proxy = getProxy();
+
     const body = `action=cln_books_brief&token=${token}&appid=${item.appid}&market_name=${item.hash_name}`;
 
     for(let attempt=1; attempt<=retries; attempt++){
         try {
-            const resp = await fetch("https://market-proxy.gaijin.net/web", {
+            const resp = await fetch(`${proxy}https://market-proxy.gaijin.net/web`, {
                 method:"POST",
                 headers: {
                     "Content-Type":"application/x-www-form-urlencoded",
-                    "accept": "application/json, text/plain, */*"
+                    "accept": "application/json, text/plain, */*",
+                    "Origin": "https://trade.gaijin.net" // Required by some CORS proxies
                 },
+                referrer: "https://trade.gaijin.net/",
                 mode: "cors",
                 credentials: "omit",
                 body
@@ -491,7 +713,7 @@ async function exactScanItem(token, item, retries=3){
             salesHistoryQueue.push(item);            
             if (!salesQueueRunning) processSalesHistoryQueueParallel(token);
             updateTable();
-            return;
+            return true;
 
         } catch(e){
             debug(`Exact scan failed for ${item.name}, attempt ${attempt}: ${e}`, "red");
@@ -510,7 +732,7 @@ async function exactScanItem(token, item, retries=3){
 }
 
 // --- Fetch Sales History ---
-const salesConcurrency = 100; // Process 100 sales history requests in parallel
+const salesConcurrency = 73; // Process 73 sales history requests in parallel
 async function processSalesHistoryQueueParallel(token){
     if (salesQueueRunning || salesHistoryQueue.length === 0) return;
     salesQueueRunning = true;
@@ -528,6 +750,8 @@ async function processSalesHistoryQueueParallel(token){
 
             const batch = salesHistoryQueue.splice(0, salesConcurrency);
             await Promise.all(batch.map(item => fetchSalesHistory(token, item)));
+            // Short delay between batches
+            await new Promise(r => setTimeout(r, 100));
         }
         
         debug("Sales history processing complete.", "#0ff");
@@ -540,14 +764,18 @@ async function processSalesHistoryQueueParallel(token){
 
 async function fetchSalesHistory(token, item){
     try {
+
+        const proxy = getProxy();
         debug(`Fetching sales history for: ${item.name}`, 'gray');
-        const body = `action=cln_get_pair_stat&token=${token}&appid=${item.appid}&market_name=${item.hash_name}&currencyid=gjn`;
-        const resp = await fetch("https://market-proxy.gaijin.net/web", {
+        const body = `action=cln_get_pair_stat&token=${token}&appid=${item.appid}&market_name=${item.hash_name}&currencyid=gjn`;        
+        const resp = await fetch(`${proxy}https://market-proxy.gaijin.net/web`, {
             method:"POST",
             headers: {
                 "Content-Type":"application/x-www-form-urlencoded",
-                "accept": "application/json, text/plain, */*"
+                "accept": "application/json, text/plain, */*",
+                "Origin": "https://trade.gaijin.net" // Required by some CORS proxies
             },
+            referrer: "https://trade.gaijin.net/",
             mode: "cors",
             credentials: "omit",
             body
@@ -614,14 +842,17 @@ document.querySelectorAll("#resultsTable th").forEach((th, idx)=>{
         const colKey = colNames[idx];
         debug(`Sort column clicked: '${colKey}'. Toggling sort order.`, "yellow");
         if(currentSort.column===colKey) currentSort.asc = !currentSort.asc;
-        else { currentSort.column = colKey; currentSort.asc = true; }
+        else { 
+            currentSort.column = colKey; 
+            // Default to descending for these columns
+            currentSort.asc = !(colKey === 'Profit %' || colKey === 'Sales/Day' || colKey === 'Last 24h Sales'); 
+        }
         updateFiltersAndSort();
     });
 });
 
 function updateFiltersAndSort() {
     const tbody = document.getElementById("resultsTable").querySelector("tbody");
-    
     // Update header arrow indicators
     document.querySelectorAll("#resultsTable th").forEach((th, idx)=>{
         th.classList.remove("sorted-asc","sorted-desc");
@@ -630,7 +861,6 @@ function updateFiltersAndSort() {
             th.classList.add(currentSort.asc?"sorted-asc":"sorted-desc");
         }
     });
-    
     localStorage.setItem("currentSort", JSON.stringify(currentSort));
     
     const minProfit = parseFloat(document.getElementById("minProfit").value);
@@ -805,23 +1035,32 @@ setInterval(updateTimestamps, 5000); // Update every 5 seconds, much more effici
 
 async function updateOpenOrdersData() {
     if (isUpdatingOpenOrders) return;
-    isUpdatingOpenOrders = true; // Prevent multiple simultaneous fetches
-    debug("Background updating 'My Open Orders' data...", "cyan");
+    isUpdatingOpenOrders = true;    
 
-    const token = document.getElementById("tokenInput").value.trim();
-    if (!token) {
+    const mainToken = document.getElementById("tokenInput").value.trim();
+    if (!mainToken) {
+        myOpenOrdersHtmlCache = `<p style="color:orange;">A Main/User Token is required to view your open orders.</p>`;
         isUpdatingOpenOrders = false;
         return;
     }
 
+    // Increment main token usage counter
+    mainTokenUsageCount++;
+    document.getElementById("mainTokenUsage").textContent = `(Usage: ${mainTokenUsageCount})`;
+
     try {
         // --- Fetch Open Orders ---
-        const resp = await fetch("https://market-proxy.gaijin.net/web", {
+        const proxy = getProxy();
+        const resp = await fetch(`${proxy}https://market-proxy.gaijin.net/web`, {
             method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            headers: { 
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Origin": "https://trade.gaijin.net" // Required by some CORS proxies
+            },
+            referrer: "https://trade.gaijin.net/",
             mode: "cors",
             credentials: "omit",
-            body: `action=cln_get_user_open_orders&token=${token}`
+            body: `action=cln_get_user_open_orders&token=${mainToken}`
         });
 
         const data = await resp.json();
@@ -847,27 +1086,39 @@ async function updateOpenOrdersData() {
         }
 
         async function getBooksForMarket(token, marketName, knownAppid) {
-            try {
+            const proxy = getProxy();
+            try { // This function should use the scan token for market data
                 let appid = knownAppid; // Use the known appid if available
                 if (!appid) { // If not, we must find it
                     // search to find appid and exact market_name entry
-                    const searchBody = `action=cln_market_search&token=${token}&text=${encodeURIComponent(marketName)}&language=en_US&options=any_buy_orders%3Binclude_marketpairs&appid_filter=1067&count=5`;
-                    const itemResp = await fetch("https://market-proxy.gaijin.net/web", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: searchBody });
+                    const searchBody = `action=cln_market_search&token=${token}&text=${encodeURIComponent(marketName)}&language=en_US&options=any_buy_orders%3Binclude_marketpairs&appid_filter=1067&count=5`;                    
+                    const itemResp = await fetch(`${proxy}https://market-proxy.gaijin.net/web`, {
+                        method: "POST",
+                        mode: "cors", // Explicitly set mode
+                        credentials: "omit", // Explicitly set credentials
+                        headers: { 
+                            "Content-Type": "application/x-www-form-urlencoded",
+                            "Origin": "https://trade.gaijin.net" // Required by some CORS proxies
+                        },
+                        body: searchBody
+                    });
                     const itemData = await itemResp.json();
                     const found = itemData.response?.assets?.find(a => a.hash_name === marketName) || itemData.response?.assets?.[0];
                     if (found) appid = found.appid;
                     else return null;
                 }
 
-                const body = `action=cln_books_brief&token=${token}&appid=${appid}&market_name=${marketName}`;
-                const resp = await fetch("https://market-proxy.gaijin.net/web", {
+                const resp = await fetch(`${proxy}https://market-proxy.gaijin.net/web`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/x-www-form-urlencoded", "accept": "application/json, text/plain, */*" },
                     mode: "cors",
                     credentials: "omit",
-                    body
+                    headers: { 
+                        "Content-Type": "application/x-www-form-urlencoded",
+                        "Origin": "https://trade.gaijin.net" // Required by some CORS proxies
+                    },
+                    body: `action=cln_books_brief&token=${token}&appid=${appid}&market_name=${encodeURIComponent(marketName)}`
                 });
-                const json = await resp.json();
+                const json = await resp.json(); // This will now contain the SELL/BUY books
                 return json.response || null;
             } catch (e) {
                 return null;
@@ -876,11 +1127,18 @@ async function updateOpenOrdersData() {
 
         // Fetch user history to find purchase prices
         let purchaseStack = {};
+        // Increment main token usage counter
+        mainTokenUsageCount++;
+        document.getElementById("mainTokenUsage").textContent = `(Usage: ${mainTokenUsageCount})`;
+
         try {
-            const historyResp = await fetch("https://market-proxy.gaijin.net/web", {
+            const historyResp = await fetch(`${getProxy()}https://market-proxy.gaijin.net/web`, {
                 method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: `action=cln_get_user_history&token=${token}&count=100&skip=0` // Using 100, a known safe value from the history viewer
+                headers: { 
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Origin": "https://trade.gaijin.net" // Required by some CORS proxies
+                },
+                body: `action=cln_get_user_history&token=${mainToken}&count=100&skip=0` // Using 100, a known safe value from the history viewer
             });
             const historyData = await historyResp.json();
 
@@ -902,7 +1160,7 @@ async function updateOpenOrdersData() {
                     if (deal.event === 'deal' && deal.type === 'BUY') {
                         // Add the purchase price to the item's stack
                         for (let i = 0; i < dealCount; i++) {
-                            purchaseStack[marketName].push(dealPrice);
+                            purchaseStack[marketName].push({ price: dealPrice, timestamp: deal.ts });
                         }
                     } else if (deal.event === 'deal' && deal.type === 'SELL') {
                         // A sale occurred, so remove the oldest purchase from the stack (FIFO)
@@ -910,7 +1168,6 @@ async function updateOpenOrdersData() {
                             if (purchaseStack[marketName].length > 0) {
                                 purchaseStack[marketName].shift();
                             } else {
-                                // Sold an item we don't have a purchase record for.
                                 // This can happen if the history is truncated or item was obtained differently.
                                 // For the purpose of open orders, this means we can't track its cost.
                                 debug(`Warning: Sold ${marketName} but no purchase record found for this unit in open orders context.`, "orange");
@@ -942,7 +1199,7 @@ async function updateOpenOrdersData() {
                             <th style="border-bottom:1px solid #333; padding:5px;">Potential Profit</th>
                             <th style="border-bottom:1px solid #333; padding:5px;">Status</th>
                             <th style="border-bottom:1px solid #333; padding:5px;">Competing Sell (Undercut)</th>
-                            <th style="border-bottom:1px solid #333; padding:5px;">Est. Sell Time</th>
+                            <th style="border-bottom:1px solid #333; padding:5px;">Last 24h Sales</th>
                         </tr>`;
 
         const orderRowPromises = Object.entries(purchaseStack).map(async ([marketName, purchasePrices]) => {
@@ -955,8 +1212,16 @@ async function updateOpenOrdersData() {
                 // Item is in our inventory but not in the active sell orders list. It might have been sold.
                 if (purchasePrices.length > 0) {
                     // If it's not already marked as sold, mark it now with a timestamp.
+                    // We assume the oldest purchase corresponds to the item just sold (FIFO).
                     if (!soldItemsTracker.has(marketName)) {
                         soldItemsTracker.set(marketName, Date.now());
+                        const soldPurchase = purchasePrices.shift(); // Remove the oldest purchase from stack
+                        const scannedItem = itemsScanned.find(item => item.hash_name === marketName);
+                        if (soldPurchase && soldPurchase.price) {
+                            logSoldItemData(scannedItem, soldPurchase.price / 1e4, soldPurchase.timestamp);
+                        } else {
+                            logSoldItemData(scannedItem, null, null); // Fallback if no purchase record found
+                        }
                     }
                 }
                 return '';
@@ -970,9 +1235,10 @@ async function updateOpenOrdersData() {
 
             let competingHtml = '';
             let profitHtml = '';
-            let estSellTimeHtml = '...';
-
-            const books = await getBooksForMarket(token, marketName, appid);
+            let last24hSalesHtml = '...';
+            
+            const scanToken = document.getElementById("scanTokenInput").value.trim() || document.getElementById("tokenInput").value.trim();
+            const books = await getBooksForMarket(scanToken, marketName, appid);
             if (books && Array.isArray(books.SELL) && books.SELL.length > 0) {
                 const sellOffers = books.SELL.slice().sort((a, b) => a[0] - b[0]).map(s => ({ price: s[0] / 1e4, count: s[1] }));
                 const myPrice = openOrder.price;
@@ -985,28 +1251,16 @@ async function updateOpenOrdersData() {
                     competingHtml = '<span style="color:#0f0;">No cheaper sells</span>';
                 }
 
-                // --- Calculate Estimated Sell Time ---
-                const salesPerDay = scannedItem?.salesPerDay ? parseFloat(scannedItem.salesPerDay) : 0;
-                if (salesPerDay > 0) {
-                    const salesPerHour = salesPerDay / 24;
-                    // Count items listed at a price less than or equal to my price
-                    const competingVolume = sellOffers
-                        .filter(s => s.price <= myPrice + 0.0000001)
-                        .reduce((sum, s) => sum + s.count, 0);
-
-                    if (salesPerHour > 0) {
-                        const hoursToSell = competingVolume / salesPerHour;
-                        estSellTimeHtml = hoursToSell < 24 
-                            ? `${hoursToSell.toFixed(1)} hours` 
-                            : `${(hoursToSell / 24).toFixed(1)} days`;
-                    }
+                // --- Get Last 24h Sales ---
+                if (scannedItem && scannedItem.sales24h !== null) {
+                    last24hSalesHtml = scannedItem.sales24h;
                 }
             } else {
                 competingHtml = '<span style="color:#ccc;">No sell book data</span>';
             }
 
             // The oldest un-sold purchase price is the first one in the array
-            const purchasePrice = purchasePrices[0] / 1e4;
+            const purchasePrice = purchasePrices[0].price / 1e4;
             const myPrice = openOrder.price;
             const proceeds = myPrice * 0.85; // After 15% Gaijin cut
             const profitGjn = proceeds - purchasePrice;
@@ -1031,7 +1285,7 @@ async function updateOpenOrdersData() {
                         <td style="border-bottom:1px solid #333; padding:5px;">${profitHtml}</td>
                         <td style="border-bottom:1px solid #333; padding:5px;"><span style="color:#a5d6a7;">Listed</span></td>
                         <td style="border-bottom:1px solid #333; padding:5px;">${competingHtml}</td>
-                        <td style="border-bottom:1px solid #333; padding:5px;">${estSellTimeHtml}</td>
+                        <td style="border-bottom:1px solid #333; padding:5px;">${last24hSalesHtml}</td>
                     </tr>`;
         });
 
@@ -1056,6 +1310,7 @@ async function updateOpenOrdersData() {
                 <td style="border-bottom:1px solid #333; padding:5px;">-</td>
                 <td style="border-bottom:1px solid #333; padding:5px;">-</td>
                 <td style="border-bottom:1px solid #333; padding:5px;"><b style="color:#4CAF50;">SOLD</b></td>
+                <td style="border-bottom:1px solid #333; padding:5px;">-</td>
                 <td style="border-bottom:1px solid #333; padding:5px;">-</td>
                 <td style="border-bottom:1px solid #333; padding:5px;">-</td>
             </tr>`;
@@ -1093,16 +1348,23 @@ document.getElementById("showOpenOrders").addEventListener("click", async () => 
     const overlay = document.getElementById("openOrdersOverlay");
     const content = document.getElementById("openOrdersContent");
     overlay.style.display = "block";
-    
-    // Always fetch fresh data when the overlay is opened.
-    debug("Fetching 'My Open Orders' data on click.", "yellow");
+
+    debug("Manually fetching 'My Open Orders' data on click.", "yellow");
     content.innerHTML = '<p>Loading open orders...</p>';
-    await updateOpenOrdersData(); // This function updates the cache and then the content.
+    await updateOpenOrdersData(); // This function updates the cache and the content.
+    content.innerHTML = myOpenOrdersHtmlCache; // Display the fresh, cached data.
 });
 
 // --- User History ---
 document.getElementById("showHistory").addEventListener("click", () => {
     const overlay = document.getElementById("historyOverlay");
+    
+    if (!overlay) {
+        alert("History overlay not found. Please refresh the page.");
+        debug("Error: historyOverlay element not found in DOM", "red");
+        return;
+    }
+    
     overlay.style.display = "block";
 
     if (historyCache) {
@@ -1120,12 +1382,13 @@ document.getElementById("refreshHistory").addEventListener("click", () => {
 });
 
 async function fetchHistory(isInitialLoad) {
-    const token = document.getElementById("tokenInput").value.trim();
-    if (!token) return alert("Token is required to fetch history!");
+    const mainToken = document.getElementById("tokenInput").value.trim();
+    if (!mainToken) return alert("A Main/User Token is required to fetch history!");
 
     const content = document.getElementById("historyContent");    
 
     try {
+
         let allEvents = [];
         let skip = 0;
         const count = 100; // Max count per request, as discovered
@@ -1133,10 +1396,17 @@ async function fetchHistory(isInitialLoad) {
 
         for (let page = 0; page < maxPages; page++) {
             content.innerHTML = `Loading transaction history (Page ${page + 1}/${maxPages})...`;
-            const resp = await fetch("https://market-proxy.gaijin.net/web", {
+            // Increment main token usage counter for each page fetched
+            mainTokenUsageCount++;
+            document.getElementById("mainTokenUsage").textContent = `(Usage: ${mainTokenUsageCount})`;
+
+            const resp = await fetch(`${getProxy()}https://market-proxy.gaijin.net/web`, {
                 method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: `action=cln_get_user_history&token=${token}&count=${count}&skip=${skip}`
+                headers: { 
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Origin": "https://trade.gaijin.net" // Required by some CORS proxies
+                },
+                body: `action=cln_get_user_history&token=${mainToken}&count=${count}&skip=${skip}`
             });
 
             const pageData = await resp.json();
@@ -1175,14 +1445,15 @@ async function fetchHistory(isInitialLoad) {
 
 function processAndDrawHistory(data) {
     const content = document.getElementById("historyContent");
-    let canvas = document.getElementById("historyChart");
-
-    // If the canvas was removed by a loading message, recreate it.
+    content.innerHTML = ''; // Clear first
+    
+    let canvas = document.getElementById("historyChart"); // Ensure canvas exists or create it
     if (!canvas) {
         canvas = document.createElement('canvas');
         canvas.id = 'historyChart';
         canvas.width = 1000;
         canvas.height = 400;
+        content.appendChild(canvas); // Append immediately after creation
     }
     content.innerHTML = ''; // Clear "Loading..." or old graph
     content.appendChild(canvas);
@@ -1208,19 +1479,40 @@ function processAndDrawHistory(data) {
         if (trade.type === 'BUY') {
             // Add the purchase price to the item's stack 'dealCount' times
             for (let i = 0; i < tradeCount; i++) {
-                purchaseStack[marketName].push(tradePrice);
+                purchaseStack[marketName].push({ price: tradePrice, timestamp: trade.ts });
             }
         } else if (trade.type === 'SELL') {
             // A sale occurred, so calculate profit based on the oldest purchase (FIFO)
             for (let i = 0; i < tradeCount; i++) {
                 if (purchaseStack[marketName].length > 0) {
-                    const purchasePrice = purchaseStack[marketName].shift() / 1e4; // Oldest purchase
+                    const purchasedItem = purchaseStack[marketName].shift(); // Oldest purchase object
                     const sellPrice = tradePrice / 1e4;
+                    const buyPrice = purchasedItem.price / 1e4;
+                    const buyTimestamp = purchasedItem.timestamp; // Get buy timestamp
                     const proceeds = sellPrice * 0.85; // After 15% Gaijin cut
-                    const profit = proceeds - purchasePrice;
+                    const profit = proceeds - buyPrice;
 
                     const scannedItem = itemsScanned.find(item => item.hash_name === marketName);
                     const itemName = (scannedItem?.name || marketName).replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+                    // Calculate time to sell for historical logs
+                    let timeToSell = 'N/A';
+                    if (buyTimestamp) {
+                        timeToSell = ((trade.ts * 1000) - (buyTimestamp * 1000)) / (1000 * 60 * 60 * 24); // Convert to days
+                        timeToSell = timeToSell.toFixed(2) + ' days';
+                    }
+
+                    // Add to salesLog (if not already present to avoid duplicates from refresh)
+                    if (!salesLog.some(log => log.timestamp === trade.ts * 1000)) {
+                        salesLog.push({
+                            timestamp: trade.ts * 1000,
+                            itemName: itemName,
+                            sellPrice: sellPrice,
+                            buyPrice: buyPrice,
+                            timeToSell: timeToSell,
+                            sales24h: 'N/A', salesPerDay: 'N/A', priceGap: 'N/A' // Cannot retrieve for historical
+                        });
+                    }
 
                     tradeLog.push({
                         ts: trade.ts,
@@ -1229,15 +1521,40 @@ function processAndDrawHistory(data) {
                         net: profit
                     });
                 } else {
-                    // If we sell an item but have no record of buying it,
-                    // we can't calculate profit for this specific unit.
-                    // This might happen if history is incomplete or item was obtained otherwise.
-                    // For now, we'll just skip this unit.
-                    debug(`Warning: Sold ${marketName} but no purchase record found for this unit.`, "orange");
+                    // This case means we sold an item we don't have a buy record for.
+                    // We can still log the sale event itself, just without profit info.
+                    const sellPrice = tradePrice / 1e4;
+                    const scannedItem = itemsScanned.find(item => item.hash_name === marketName);
+                    const itemName = (scannedItem?.name || marketName).replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    
+                    // Add to main trade log for graph consistency, but with 0 profit
+                    tradeLog.push({
+                        ts: trade.ts,
+                        date: new Date(trade.ts * 1000).toLocaleString(),
+                        itemName: itemName,
+                        net: 0 // Cannot calculate profit
+                    });
+
+                    // Add to salesLog (if not already present)
+                    if (!salesLog.some(log => log.timestamp === trade.ts * 1000)) {
+                        salesLog.push({
+                            timestamp: trade.ts * 1000,
+                            itemName: itemName,
+                            sellPrice: sellPrice,
+                            buyPrice: 'N/A',
+                            timeToSell: 'N/A',
+                            sales24h: 'N/A', salesPerDay: 'N/A', priceGap: 'N/A'
+                        });
+                    }
+                    debug(`Warning: Sold ${itemName} (ID: ${marketName}) but no corresponding purchase record found in fetched history. Profit/Sell Time will be N/A.`, "orange");
                 }
             }
         }
     }
+
+    // The salesLog is now populated within the FIFO loop, so we just save it.
+    debug(`Processed historical sales and updated sales log.`, "#0f0");
+    saveSalesLog(); // Save after generating historical logs
 
     // Sort the completed trades chronologically
     tradeLog.sort((a, b) => a.ts - b.ts);
@@ -1402,7 +1719,7 @@ document.getElementById("closeHistory").addEventListener("click", () => {
     debug("Close History button clicked.", "yellow");
     const overlay = document.getElementById("historyOverlay");
     historyCache = null; // Clear cache on close to ensure fresh data next time
-    if (overlay) overlay.style.display = "none";
+    if (overlay) overlay.style.display = "none"; // Add a check for the overlay
 });
 
 document.getElementById("closeOpenOrders").addEventListener("click", () => {
@@ -1410,6 +1727,79 @@ document.getElementById("closeOpenOrders").addEventListener("click", () => {
     const overlay = document.getElementById("openOrdersOverlay");
     if (overlay) overlay.style.display = "none";
 });
+
+// --- Sales Log Functionality ---
+document.getElementById("showSalesLog").addEventListener("click", () => {
+    const overlay = document.getElementById("salesLogOverlay");
+    overlay.style.display = "block";
+    renderSalesLog();
+});
+
+document.getElementById("closeSalesLog").addEventListener("click", () => {
+    const overlay = document.getElementById("salesLogOverlay");
+    if (overlay) overlay.style.display = "none";
+});
+
+function logSoldItemData(item, buyPrice, buyTimestamp) {
+    if (!item) return;
+
+    const now = new Date();
+    const timestamp = now.getTime();
+
+    // Find price gap: difference between lowest sell (which was just bought) and the next lowest. `item.secondLowest` is the new lowest price.
+    const priceGap = (item.secondLowest && item.lowestSell) ? (item.secondLowest - item.lowestSell).toFixed(4) : 'N/A';
+
+    let timeToSell = 'N/A';
+    if (buyTimestamp) {
+        const sellTimeMs = timestamp;
+        const buyTimeMs = buyTimestamp * 1000; // Convert buyTimestamp from seconds to ms
+        const diffDays = (sellTimeMs - buyTimeMs) / (1000 * 60 * 60 * 24);
+        timeToSell = diffDays.toFixed(2) + ' days';
+    }
+
+    const logData = {
+        timestamp: timestamp,
+        itemName: item.name,
+        sellPrice: item.lowestSell, // The price it was sold at
+        sales24h: item.sales24h,
+        salesPerDay: item.salesPerDay,
+        priceGap: priceGap,
+        buyPrice: buyPrice !== null ? buyPrice : 'N/A',
+        timeToSell: timeToSell
+    };
+
+    salesLog.unshift(logData); // Add to the beginning of the array
+    saveSalesLog(); // Persist to localStorage
+    debug(`Item Sold & Logged: ${item.name} at ${typeof logData.sellPrice === 'number' ? logData.sellPrice.toFixed(2) + ' GJN' : 'N/A'}`, "#0f0");
+}
+
+function renderSalesLog() {
+    const content = document.getElementById("salesLogContent");
+    if (salesLog.length === 0) {
+        content.innerHTML = '<p>No sales have been logged yet.</p>';
+        return;
+    }
+
+    // Sort by timestamp descending (most recent first)
+    salesLog.sort((a, b) => b.timestamp - a.timestamp);
+
+    let tableHtml = `<table style="width:100%; border-collapse:collapse;">
+        <tr> 
+            <th>Timestamp</th><th>Item Name</th><th>Sell Price</th><th>Buy Price</th><th>Time to Sell</th><th>24h Sales</th><th>Sales/Day</th><th>Price Gap</th>
+        </tr>`;
+
+    for (const log of salesLog) {
+        tableHtml += `<tr>
+            <td>${new Date(log.timestamp).toLocaleString()}</td><td>${log.itemName || 'Unknown'}</td><td>${typeof log.sellPrice === 'number' ? log.sellPrice.toFixed(2) + ' GJN' : 'N/A'}</td><td>${typeof log.buyPrice === 'number' ? log.buyPrice.toFixed(2) + ' GJN' : 'N/A'}</td><td>${log.timeToSell || 'N/A'}</td><td>${log.sales24h || 'N/A'}</td><td>${log.salesPerDay || 'N/A'}</td><td>${log.priceGap || 'N/A'}</td>
+        </tr>`;
+    }
+    tableHtml += '</table>';
+    content.innerHTML = tableHtml;
+}
+
+}); // End of DOMContentLoaded
+
 </script>
+
 </body>
 </html>
